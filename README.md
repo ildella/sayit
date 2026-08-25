@@ -1,5 +1,9 @@
 # Say It
 
+[![CI Linux](https://img.shields.io/github/actions/workflow/status/ildella/sayit/ci-linux.yml?branch=master&label=Linux)](https://github.com/ildella/sayit/actions/workflows/ci-linux.yml)
+[![CI macOS](https://img.shields.io/github/actions/workflow/status/ildella/sayit/ci-macos.yml?branch=master&label=macOS)](https://github.com/ildella/sayit/actions/workflows/ci-macos.yml)
+[![CI Windows](https://img.shields.io/github/actions/workflow/status/ildella/sayit/ci-windows.yml?branch=master&label=Windows)](https://github.com/ildella/sayit/actions/workflows/ci-windows.yml)
+
 Private, local text-to-speech, cross-platform. Say It turns copied text into
 speech with open models running entirely on your machine — your text and
 generated audio never leave your computer.

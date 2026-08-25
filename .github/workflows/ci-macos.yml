@@ -1,7 +1,7 @@
-# Compile the Tauri shell on Linux, macOS, and Windows.
+# Compile the Tauri shell on macOS.
 # Intentionally --no-bundle: installers would be a mute window until the
 # Node sidecar is packaged. This job only proves the crate + UI build.
-name: ci
+name: ci-macos
 
 on:
   push:
@@ -15,21 +15,11 @@ concurrency:
 
 jobs:
   build:
-    name: build (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-22.04, macos-latest, windows-latest]
+    name: build (macos-latest)
+    runs-on: macos-latest
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install Linux WebKitGTK deps
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
       - uses: actions/setup-node@v4
         with:
@@ -54,10 +44,4 @@ jobs:
         run: npm run build:ci
 
       - name: Check release binary
-        shell: bash
-        run: |
-          if [ "${{ runner.os }}" = "Windows" ]; then
-            test -f src-tauri/target/release/sayit.exe
-          else
-            test -f src-tauri/target/release/sayit
-          fi
+        run: test -f src-tauri/target/release/sayit

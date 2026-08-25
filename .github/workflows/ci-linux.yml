@@ -1,0 +1,52 @@
+# Compile the Tauri shell on Linux.
+# Intentionally --no-bundle: installers would be a mute window until the
+# Node sidecar is packaged. This job only proves the crate + UI build.
+name: ci-linux
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build (ubuntu-22.04)
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux WebKitGTK deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            app/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: ./src-tauri -> target
+
+      - name: Install JS deps
+        run: |
+          npm ci
+          npm --prefix app ci
+
+      - name: Compile shell (no bundle)
+        run: npm run build:ci
+
+      - name: Check release binary
+        run: test -f src-tauri/target/release/sayit
