@@ -88,12 +88,32 @@ fn spawn_sidecar() -> Option<Child> {
         })?;
 
     let node = std::env::var("SAYIT_NODE").unwrap_or_else(|_| "node".to_string());
+    let log_path = dirs::cache_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("sayit")
+        .join("sidecar.log");
+    let _ = std::fs::create_dir_all(log_path.parent().unwrap());
+    let log = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_path)
+        .ok();
+    let (stdout, stderr) = match log {
+        Some(file) => {
+            let err = file.try_clone().ok();
+            (
+                Stdio::from(file),
+                err.map(Stdio::from).unwrap_or_else(Stdio::null),
+            )
+        }
+        None => (Stdio::null(), Stdio::null()),
+    };
     Command::new(node)
         .arg("src/index.js")
         .current_dir(&dir)
         .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .stdout(stdout)
+        .stderr(stderr)
         .spawn()
         .ok()
 }

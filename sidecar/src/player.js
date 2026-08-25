@@ -17,7 +17,7 @@ class Player extends EventEmitter {
     this.pending = new Map();
     this.state = {
       playing: false, paused: false, position: 0, duration: 0,
-      speed: 1.0, file: null, controllable: false,
+      speed: 1.0, volume: 1.0, file: null, controllable: false,
     };
     this._hasMpv = null;
   }
@@ -32,16 +32,19 @@ class Player extends EventEmitter {
     return this._hasMpv;
   }
 
-  async play(file, { speed = 1.0 } = {}) {
+  async play(file, { speed = 1.0, volume = 1.0 } = {}) {
     await this.stop();
-    this.state = { ...this.state, playing: true, paused: false, position: 0, speed, file };
+    this.state = { ...this.state, playing: true, paused: false, position: 0, speed, volume, file };
 
     if (await this.detectMpv()) {
       try { fs.unlinkSync(MPV_SOCKET); } catch { /* stale socket */ }
       this.proc = spawn('mpv', [
         '--no-terminal', '--really-quiet', '--idle=no',
         `--input-ipc-server=${MPV_SOCKET}`,
+        // Software amplification up to 200%, so volume can span silence (0) to 2x.
+        '--volume-max=200',
         `--speed=${speed}`,
+        `--volume=${Math.round(volume * 100)}`,
         file,
       ], { stdio: 'ignore' });
       this.proc.on('error', () => this._fallback(file));
@@ -92,7 +95,7 @@ class Player extends EventEmitter {
           }
         });
         // Observe the properties the UI needs.
-        for (const prop of ['time-pos', 'duration', 'pause']) {
+        for (const prop of ['time-pos', 'duration', 'pause', 'volume']) {
           this._send('observe_property', [this.reqId, prop]);
         }
       });
@@ -115,6 +118,9 @@ class Player extends EventEmitter {
       if (msg.name === 'time-pos') this.state.position = msg.data ?? 0;
       if (msg.name === 'duration') this.state.duration = msg.data ?? 0;
       if (msg.name === 'pause') this.state.paused = Boolean(msg.data);
+      if (typeof msg.data === 'number' && msg.name === 'volume') {
+        this.state.volume = msg.data / 100;
+      }
       this.emit('state', this.state);
     }
   }
@@ -144,6 +150,18 @@ class Player extends EventEmitter {
     speed = Math.min(4, Math.max(0.5, speed));
     this.state.speed = speed;
     await this._send('set_property', ['speed', speed]);
+    this.emit('state', this.state);
+  }
+
+  /**
+   * Volume in the 0–2 range (0 = silence), mirroring Say It on macOS.
+   * mpv stores volume as a percentage; --volume-max=200 allows >100%.
+   */
+  async setVolume(volume) {
+    if (!Number.isFinite(volume)) return;
+    volume = Math.min(2, Math.max(0, volume));
+    this.state.volume = volume;
+    await this._send('set_property', ['volume', Math.round(volume * 100)]);
     this.emit('state', this.state);
   }
 

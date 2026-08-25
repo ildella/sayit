@@ -59,7 +59,7 @@ async function speak(text, { voice, speed } = {}) {
   if (abort.signal.aborted) return { aborted: true };
 
   const effectiveSpeed = speed || getSettings().speed;
-  await player.play(result.file, { speed: effectiveSpeed });
+  await player.play(result.file, { speed: effectiveSpeed, volume: getSettings().volume });
   job.phase = 'playing';
   broadcast('job', { phase: job.phase, text, file: result.file });
 
@@ -127,7 +127,11 @@ export function createServer() {
           } catch (err) {
             return json(res, 409, { error: err.message, code: err.code || 'model.not_installed' });
           }
-          speak(text, { voice, speed }).catch((err) => broadcast('error', { message: err.message, code: err.code }));
+          speak(text, { voice, speed }).catch((err) => {
+            if (currentJob) currentJob.phase = 'error';
+            broadcast('job', { phase: 'error', text: currentJob?.text });
+            broadcast('error', { message: err.message, code: err.code });
+          });
           return json(res, 202, { accepted: true });
         }
 
@@ -150,6 +154,18 @@ export function createServer() {
           return json(res, 200, { ok: true });
         }
 
+        // Volume spans 0 (silence) to 2, same range as Say It on macOS.
+        case 'POST /v1/volume': {
+          const { volume } = await readBody(req);
+          const v = Number(volume);
+          if (!Number.isFinite(v) || v < 0 || v > 2) {
+            return json(res, 400, { error: 'Volume must be between 0 and 2', code: 'playback.invalid_volume' });
+          }
+          await player.setVolume(v);
+          saveSettings({ volume: v });
+          return json(res, 200, { ok: true, settings: getSettings() });
+        }
+
         case 'GET /v1/voices':
           return json(res, 200, Object.entries(VOICES).map(([id, v]) => ({ id, ...v })));
 
@@ -164,7 +180,7 @@ export function createServer() {
           const entry = getHistory(id);
           if (!entry) return json(res, 404, { error: 'Not found' });
           if (entry.file && fs.existsSync(entry.file)) {
-            await player.play(entry.file, { speed: entry.speed || 1.0 });
+            await player.play(entry.file, { speed: entry.speed || 1.0, volume: getSettings().volume });
             return json(res, 200, { ok: true, cached: true });
           }
           speak(entry.text, { voice: entry.voice, speed: entry.speed })

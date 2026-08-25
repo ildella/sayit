@@ -98,6 +98,7 @@ Usage:
   sayit pause | resume | stop
   sayit seek <seconds>     Seek relative (e.g. -10, +30)
   sayit speed <0.5-4>      Set playback speed
+  sayit volume <0-2>       Set volume (0 = silence, 1 = normal)
   sayit voices             List voices
   sayit models             List models
   sayit models install <id> [--use]
@@ -152,6 +153,11 @@ try {
       console.log('ok');
       break;
 
+    case 'volume':
+      await api('POST', '/v1/volume', { volume: Number(args[0]) });
+      console.log('ok');
+      break;
+
     case 'voices': {
       for (const v of await api('GET', '/v1/voices')) {
         console.log(`${v.id.padEnd(14)} ${v.name.padEnd(10)} ${v.lang} ${v.gender}`);
@@ -163,6 +169,11 @@ try {
       const sub = args[0];
       if (!sub) {
         const listed = await api('GET', '/v1/models');
+        if (!Array.isArray(listed)) {
+          console.error('error: sidecar returned a legacy models payload. Update it with scripts/setup-sidecar.sh');
+          process.exitCode = 1;
+          break;
+        }
         for (const m of listed) {
           const flag = m.active ? 'active' : m.state;
           const size = Math.round((m.estimatedDiskBytes || 0) / 1e6);

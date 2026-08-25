@@ -37,13 +37,19 @@ const DEFAULT_SETTINGS = {
   host: '127.0.0.1',
   voice: 'af_heart',
   speed: 1.0,
+  volume: 1.0,
   model: 'kokoro-q8',
   unloadAfterMinutes: 10,
 };
 
 function normalizeSettings(settings) {
   if (typeof settings.model === 'string' && settings.model.includes('/')) {
-    return { ...settings, model: 'kokoro-q8' };
+    settings = { ...settings, model: 'kokoro-q8' };
+  }
+  // Volume spans 0 (silence) to 2; only a missing/invalid value falls back to 1
+  // so a stored volume of exactly 0 persists (upstream fixed this in macOS too).
+  if (!Number.isFinite(settings.volume) || settings.volume < 0 || settings.volume > 2) {
+    return { ...settings, volume: DEFAULT_SETTINGS.volume };
   }
   return settings;
 }

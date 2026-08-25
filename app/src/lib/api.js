@@ -47,6 +47,7 @@ export const resume = () => api('POST', '/v1/resume');
 export const stop = () => api('POST', '/v1/stop');
 export const seek = (seconds) => api('POST', '/v1/seek', { seconds });
 export const setSpeed = (speed) => api('POST', '/v1/speed', { speed });
+export const setVolume = (volume) => api('POST', '/v1/volume', { volume });
 export const getStatus = () => api('GET', '/v1/status');
 export const getVoices = () => api('GET', '/v1/voices');
 export const getHistory = () => api('GET', '/v1/history');

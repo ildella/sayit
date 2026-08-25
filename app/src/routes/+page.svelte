@@ -5,13 +5,22 @@
 
   let tab = $state('speak');
   let text = $state('');
-  let voice = $state('');
+  let voice = $state('af_heart');
   let speed = $state(1.0);
 
-  onMount(async () => {
-    await initStore();
-    voice = appState.settings.voice || 'af_heart';
-    speed = appState.settings.speed || 1.0;
+  onMount(() => { initStore(); });
+
+  // Fill the speak-page pickers once voices arrive. Do not assign only in
+  // onMount: a second initStore() used to return before voices existed, so
+  // the <select> stayed blank. Only overwrite when the current id is missing.
+  $effect(() => {
+    const known = appState.voices;
+    if (!known.length) return;
+    if (!known.some((v) => v.id === voice)) {
+      const fallback = appState.settings.voice;
+      voice = known.some((v) => v.id === fallback) ? fallback : known[0].id;
+    }
+    if (Number.isFinite(appState.settings.speed)) speed = appState.settings.speed;
   });
 
   const busy = $derived(appState.job?.phase === 'synthesizing');
@@ -20,11 +29,12 @@
   const progressPct = $derived(
     appState.player.duration > 0 ? (appState.player.position / appState.player.duration) * 100 : 0
   );
-  const installedModels = $derived(appState.models.filter((m) => m.state === 'installed'));
+  const models = $derived(Array.isArray(appState.models) ? appState.models : []);
+  const installedModels = $derived(models.filter((m) => m.state === 'installed'));
   const needsModel = $derived(installedModels.length === 0);
-  const recommended = $derived(appState.models.find((m) => m.stability === 'recommended') || appState.models[0]);
-  const installBusy = $derived(appState.models.some((m) => ['queued', 'downloading', 'verifying', 'canceling'].includes(m.state)));
-  const activeModel = $derived(appState.models.find((m) => m.active));
+  const recommended = $derived(models.find((m) => m.stability === 'recommended') || models[0]);
+  const installBusy = $derived(models.some((m) => ['queued', 'downloading', 'verifying', 'canceling'].includes(m.state)));
+  const activeModel = $derived(models.find((m) => m.active));
 
   function formatBytes(n) {
     if (!n) return '';
@@ -74,6 +84,25 @@
   async function changeSpeed(delta) {
     const next = Math.min(4, Math.max(0.5, Math.round((appState.player.speed + delta) * 4) / 4));
     await api.setSpeed(next);
+  }
+
+  function volumeSymbol(v) {
+    if (v <= 0) return '🔇';
+    if (v < 0.75) return '🔈';
+    if (v < 1.5) return '🔉';
+    return '🔊';
+  }
+
+  async function changeVolume(e) {
+    const v = Number(e.target.value);
+    appState.player.volume = v; // optimistic; SSE state confirms
+    try { await api.setVolume(v); } catch (err) { appState.error = err.message; }
+  }
+
+  async function saveDefaultVolume(e) {
+    try {
+      appState.settings = await api.saveSettings({ volume: Number(e.target.value) });
+    } catch (err) { appState.error = err.message; }
   }
 
   async function replayEntry(id) {
@@ -179,6 +208,15 @@
             <button class="icon" onclick={() => api.seek(10)} disabled={!playing} title="Forward 10s">+10</button>
             <button class="icon" onclick={() => api.stop()} disabled={!playing && !busy}>⏹</button>
             <span class="spacer"></span>
+            <span class="vol-icon" title="Volume">{volumeSymbol(appState.player.volume)}</span>
+            <input
+              class="vol"
+              type="range" min="0" max="2" step="0.05"
+              value={appState.player.volume}
+              oninput={changeVolume}
+              disabled={!appState.player.controllable}
+              title="Volume — all the way left is silence"
+            />
             <button class="icon" onclick={() => changeSpeed(-0.25)} disabled={!playing}>−</button>
             <span class="speed">{appState.player.speed}×</span>
             <button class="icon" onclick={() => changeSpeed(0.25)} disabled={!playing}>+</button>
@@ -233,7 +271,7 @@
       <section class="settings">
         <h3>Models</h3>
         <ul class="model-list">
-          {#each appState.models as m (m.id)}
+          {#each models as m (m.id)}
             <li class="model-card">
               <div>
                 <strong>{m.displayName}</strong>
@@ -285,6 +323,15 @@
             onchange={(e) => api.saveSettings({ speed: Number(e.target.value) }).then((s) => (appState.settings = s))}
           />
           <span class="dim">{appState.settings.speed}×</span>
+        </label>
+        <label class="setting">
+          <span>Default volume (0 = silence)</span>
+          <input
+            type="range" min="0" max="2" step="0.05"
+            value={appState.settings.volume}
+            onchange={saveDefaultVolume}
+          />
+          <span class="dim">{volumeSymbol(appState.settings.volume ?? 1)} {(appState.settings.volume ?? 1).toFixed(2)}×</span>
         </label>
         <label class="setting">
           <span>Unload model after (minutes idle)</span>
@@ -372,6 +419,8 @@ sayit status · sayit pause · sayit resume</pre>
   .transport .big { font-size: 18px; padding: 8px 16px; }
   .spacer { flex: 1; }
   .speed { min-width: 44px; text-align: center; color: var(--text-dim); }
+  .vol-icon { font-size: 14px; }
+  .vol { width: 90px; }
 
   .track { height: 5px; background: var(--surface-2); border-radius: 3px; overflow: hidden; }
   .fill { height: 100%; background: var(--accent); transition: width 0.3s linear; }

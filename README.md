@@ -48,12 +48,12 @@ Porting notes for macOS/Windows contributors are welcome — see
 ```
 
 - **sidecar/** — per-user service: synthesis (Kokoro ONNX via kokoro-js),
-  playback via mpv's JSON IPC (pause / seek / speed), history, model catalog,
+  playback via mpv's JSON IPC (pause / seek / speed / volume), history, model catalog,
   settings. One model in memory, unloaded after 10 idle minutes (configurable).
 - **app/** — SvelteKit 2 + Svelte 5 UI: speak box, transport, history, voices,
   Settings marketplace for models, onboarding when none are installed.
 - **cli/sayit.js** — `sayit "text"`, `printf … | sayit`, `sayit status`,
-  `pause`, `resume`, `stop`, `seek`, `speed`, `voices`, `models`, `history`, `replay`.
+  `pause`, `resume`, `stop`, `seek`, `speed`, `volume`, `voices`, `models`, `history`, `replay`.
 - **src-tauri/** — tray icon, global hotkey (Ctrl+Alt+V speaks clipboard),
   spawns the sidecar, hands the API token to the webview.
 
@@ -79,12 +79,16 @@ model from the app (or `sayit models install kokoro-q8 --use`) before
 speaking; after that the app stays offline.
 
 ```sh
-sayit "Hello from Say It"   # speak
-sayit status                # player + engine status
-sayit service status        # is the daemon running?
+sayit models install kokoro-q8 --use   # once, ~90 MB
+sayit "Hello from Say It"              # speak
+sayit status                           # player + engine status
+sayit volume 0                         # silence; 1 = normal, 2 = boost
+sayit service status                   # is the daemon running?
 ```
 
-That path is **CLI + sidecar only**. There is no installed `.desktop` launcher yet.
+After pulling updates, re-run `scripts/setup-sidecar.sh` (or `npm run setup`)
+and restart the service. The GUI and CLI talk to whatever is already on
+port 7878 — an old sidecar will look “stuck” or reject speak.
 
 ## Desktop app (GUI)
 
@@ -103,6 +107,12 @@ Equivalent: `npm run tauri dev` (same window; sidecar auto-spawn if port 7878 is
 ```sh
 npm run tauri build         # .deb / AppImage (Linux shell only)
 ```
+
+The `.deb` installs a **Say It** launcher and `/usr/bin/sayit` (the GUI).
+The setup script also puts the **CLI** at `~/.local/bin/sayit`. If your PATH
+lists `~/.local/bin` first, the GNOME icon or `sayit status` may run the CLI
+instead of the window. Launch the GUI with `/usr/bin/sayit`, the CLI with
+`~/.local/bin/sayit`.
 
 ## Models and first run
 
@@ -177,14 +187,44 @@ you can adapt `sayit-clipboard` to use `xclip -o` (PRIMARY) instead.
 | Path | Content |
 | ---- | ------- |
 | `~/.config/sayit/token` | API token (0600), shared by app/CLI/scripts |
-| `~/.config/sayit/settings.json` | port, voice, speed, unload timeout |
+| `~/.config/sayit/settings.json` | port, voice, speed, volume (0–2), unload timeout |
 | `~/.local/share/sayit/history.json` | spoken history (last 200) |
 | `~/.cache/sayit/models` | downloaded models |
 | `~/.cache/sayit/audio` | synthesized WAVs |
+| `~/.cache/sayit/sidecar.log` | sidecar stdout/stderr (when spawned by the GUI) |
+
+## Troubleshooting
+
+**`error: Model is not installed`** — download once:
+
+```sh
+sayit models install kokoro-q8 --use
+```
+
+Speak never fetches weights by itself.
+
+**Empty Voice menu, red connection dot, or Speak stuck on Synthesizing** —
+the UI is talking to an outdated sidecar (or systemd restarted one after you
+killed the process). Stop the unit, refresh the install, start again:
+
+```sh
+systemctl --user stop sayit
+# pkill alone is not enough if the user unit is enabled — systemd will respawn it
+ss -ltnp | grep 7878 || echo '7878 libero'
+./scripts/setup-sidecar.sh
+systemctl --user start sayit   # or: ~/.local/bin/sayit service start
+sayit models
+sayit status
+```
+
+Logs: `journalctl --user -u sayit -f` and `~/.cache/sayit/sidecar.log`.
+
+**`sayit status` opens the desktop window** — PATH hit `/usr/bin/sayit` (GUI).
+Use `~/.local/bin/sayit status`.
 
 ## API (v1)
 
-`GET /v1/status` · `POST /v1/speak|pause|resume|stop|seek|speed` ·
+`GET /v1/status` · `POST /v1/speak|pause|resume|stop|seek|speed|volume` ·
 `GET /v1/voices|models|history|settings` ·
 `POST /v1/models/:id/install|select` · `DELETE /v1/models/:id[/install]` ·
 `POST /v1/history/replay` ·
