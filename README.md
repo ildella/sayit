@@ -108,8 +108,14 @@ into `~/.cache/sayit/models`. Everything after that is fully offline.
 npm install                 # root: pulls @tauri-apps/cli
 npm --prefix app install
 npm run tauri dev           # dev: vite on :1420 + sidecar auto-spawn
-npm run tauri build         # produces .deb / AppImage
+npm run tauri build         # produces .deb / AppImage (Linux shell only)
+npm run build:ci            # compile the shell, skip installers
 ```
+
+CI (`.github/workflows/ci.yml`) runs `build:ci` on Ubuntu 22.04, macOS, and
+Windows. That only proves the crate and UI compile — the TTS sidecar is still
+installed separately via `scripts/install.sh`, so those binaries are not a
+shippable app.
 
 In dev, the app finds the sidecar via `$SAYIT_SIDECAR_DIR` or the installed
 copy in `~/.local/share/sayit/sidecar`; if a service is already listening on
