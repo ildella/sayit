@@ -14,9 +14,12 @@
   "dependencies": {
     "kokoro-js": "^1.2.1"
   },
+  "overrides": {
+    "sharp": "0.35.3"
+  },
   "allowScripts": {
     "onnxruntime-node@1.21.0": true,
-    "sharp@0.34.5": true,
+    "sharp@0.35.3": true,
     "protobufjs@7.6.5": true
   }
 }
