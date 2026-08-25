@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { MODELS_DIR, AUDIO_DIR, getSettings } from './config.js';
+import { getModel } from './catalog.js';
 
 /**
  * Synthesis engine. Wraps kokoro-js (Kokoro-82M running on onnxruntime-node,
@@ -32,6 +33,26 @@ let loadingPromise = null;
 let unloadTimer = null;
 let lastUsed = 0;
 
+let installedCheck = () => false;
+
+export function bindModelStore(store) {
+  installedCheck = (id) => store.isInstalled(id);
+}
+
+export function requireInstalled(installed) {
+  if (!installed) {
+    const err = new Error('Model is not installed');
+    err.code = 'model.not_installed';
+    throw err;
+  }
+}
+
+export function unloadEngine() {
+  tts = null;
+  loadingPromise = null;
+  clearTimeout(unloadTimer);
+}
+
 export function engineState() {
   return {
     loaded: tts !== null,
@@ -41,16 +62,37 @@ export function engineState() {
   };
 }
 
+async function withCacheDir(dir, fn) {
+  const { env } = await import('@huggingface/transformers');
+  env.cacheDir = dir;
+  return fn();
+}
+
+export async function installKokoroFiles({ model, modelsDir, signal, onProgress }) {
+  const { KokoroTTS } = await import('kokoro-js');
+  const instance = await withCacheDir(modelsDir, () => KokoroTTS.from_pretrained(model.repository, {
+    dtype: model.dtype,
+    progress_callback: onProgress,
+  }));
+  if (signal?.aborted) {
+    const err = new Error('Install canceled');
+    err.code = 'model.canceled';
+    throw err;
+  }
+  void instance;
+}
+
 async function ensureLoaded() {
+  const id = getSettings().model;
+  requireInstalled(installedCheck(id));
   if (tts) { touch(); return tts; }
   if (loadingPromise) return loadingPromise;
   loadingPromise = (async () => {
     const { KokoroTTS } = await import('kokoro-js');
-    const settings = getSettings();
-    const instance = await KokoroTTS.from_pretrained(settings.model, {
-      dtype: 'q8',
-      cache_dir: MODELS_DIR,
-    });
+    const desc = getModel(id);
+    const instance = await withCacheDir(MODELS_DIR, () => KokoroTTS.from_pretrained(desc.repository, {
+      dtype: desc.dtype,
+    }));
     tts = instance;
     loadingPromise = null;
     touch();

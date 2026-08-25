@@ -54,6 +54,12 @@ export const replay = (id) => api('POST', '/v1/history/replay', { id });
 export const deleteEntry = (id) => api('DELETE', `/v1/history/${id}`);
 export const getSettings = () => api('GET', '/v1/settings');
 export const saveSettings = (patch) => api('POST', '/v1/settings', patch);
+export const getModels = () => api('GET', '/v1/models');
+export const installModel = (id, selectAfterInstall = false) =>
+  api('POST', `/v1/models/${id}/install`, { selectAfterInstall });
+export const cancelModelInstall = (id) => api('DELETE', `/v1/models/${id}/install`);
+export const selectModel = (id) => api('POST', `/v1/models/${id}/select`);
+export const removeModel = (id) => api('DELETE', `/v1/models/${id}`);
 
 export async function openEvents(handlers) {
   const t = await resolveToken();

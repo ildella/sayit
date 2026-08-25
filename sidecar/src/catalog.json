@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "models": [
+    {
+      "id": "kokoro-q8",
+      "displayName": "Kokoro",
+      "family": "kokoro",
+      "engine": "kokoro-js",
+      "repository": "onnx-community/Kokoro-82M-v1.0-ONNX",
+      "dtype": "q8",
+      "languages": ["en-us", "en-gb"],
+      "defaultVoice": "af_heart",
+      "estimatedDiskBytes": 90000000,
+      "license": "Apache-2.0",
+      "stability": "recommended"
+    },
+    {
+      "id": "kokoro-q4",
+      "displayName": "Kokoro (small)",
+      "family": "kokoro",
+      "engine": "kokoro-js",
+      "repository": "onnx-community/Kokoro-82M-v1.0-ONNX",
+      "dtype": "q4",
+      "languages": ["en-us", "en-gb"],
+      "defaultVoice": "af_heart",
+      "estimatedDiskBytes": 50000000,
+      "license": "Apache-2.0",
+      "stability": "available"
+    }
+  ]
+}

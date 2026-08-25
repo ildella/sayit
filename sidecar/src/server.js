@@ -4,6 +4,7 @@ import { synthesize, engineState, VOICES } from './engine.js';
 import { player } from './player.js';
 import { addHistory, listHistory, getHistory, deleteHistory } from './history.js';
 import { getToken, getSettings, saveSettings } from './config.js';
+import { modelStore } from './store.js';
 
 /**
  * Versioned REST API bound to 127.0.0.1, token-protected — same shape as
@@ -21,6 +22,7 @@ function broadcast(event, data) {
 
 player.on('state', (state) => broadcast('state', state));
 player.on('finished', () => { if (currentJob) currentJob.phase = 'done'; });
+modelStore.setOnChange((models) => broadcast('models', models));
 
 function json(res, code, body) {
   res.writeHead(code, { 'Content-Type': 'application/json' });
@@ -100,6 +102,7 @@ export function createServer() {
         Connection: 'keep-alive',
       });
       res.write(`event: state\ndata: ${JSON.stringify(player.state)}\n\n`);
+      res.write(`event: models\ndata: ${JSON.stringify(modelStore.listModels())}\n\n`);
       sseClients.add(res);
       req.on('close', () => sseClients.delete(res));
       return;
@@ -117,8 +120,14 @@ export function createServer() {
         case 'POST /v1/speak': {
           const { text, voice, speed } = await readBody(req);
           if (!text || !text.trim()) return json(res, 400, { error: 'text is required' });
-          // Fire and forget: synthesis may take a while; progress flows over SSE.
-          speak(text, { voice, speed }).catch((err) => broadcast('error', { message: err.message }));
+          try {
+            if (!modelStore.isInstalled(getSettings().model)) {
+              return json(res, 409, { error: 'Model is not installed', code: 'model.not_installed' });
+            }
+          } catch (err) {
+            return json(res, 409, { error: err.message, code: err.code || 'model.not_installed' });
+          }
+          speak(text, { voice, speed }).catch((err) => broadcast('error', { message: err.message, code: err.code }));
           return json(res, 202, { accepted: true });
         }
 
@@ -145,10 +154,7 @@ export function createServer() {
           return json(res, 200, Object.entries(VOICES).map(([id, v]) => ({ id, ...v })));
 
         case 'GET /v1/models':
-          return json(res, 200, {
-            current: getSettings().model,
-            available: [{ id: 'onnx-community/Kokoro-82M-v1.0-ONNX', engine: 'kokoro-js' }],
-          });
+          return json(res, 200, modelStore.listModels());
 
         case 'GET /v1/history':
           return json(res, 200, listHistory());
@@ -182,9 +188,38 @@ export function createServer() {
           : json(res, 404, { error: 'Not found' });
       }
 
+      const modelInstall = url.pathname.match(/^\/v1\/models\/([\w-]+)\/install$/);
+      if (modelInstall) {
+        const id = modelInstall[1];
+        if (req.method === 'POST') {
+          const body = await readBody(req).catch(() => ({}));
+          const pending = modelStore.install(id, { selectAfterInstall: !!body.selectAfterInstall });
+          pending.catch((err) => broadcast('error', { message: err.message, code: err.code }));
+          return json(res, 202, { accepted: true });
+        }
+        if (req.method === 'DELETE') {
+          modelStore.cancelInstall(id);
+          return json(res, 202, { accepted: true });
+        }
+      }
+
+      const modelId = url.pathname.match(/^\/v1\/models\/([\w-]+)$/);
+      if (modelId && req.method === 'DELETE') {
+        modelStore.remove(modelId[1]);
+        return json(res, 200, { ok: true });
+      }
+
+      const modelSelect = url.pathname.match(/^\/v1\/models\/([\w-]+)\/select$/);
+      if (modelSelect && req.method === 'POST') {
+        return json(res, 200, modelStore.select(modelSelect[1]));
+      }
+
       json(res, 404, { error: 'Not found' });
     } catch (err) {
-      json(res, 500, { error: err.message });
+      const code = err.code === 'model.not_installed' || err.code === 'model.active' || err.code === 'model.busy'
+        ? 409
+        : err.message?.startsWith('Unknown model') ? 404 : 500;
+      json(res, code, { error: err.message, code: err.code });
     }
   });
 

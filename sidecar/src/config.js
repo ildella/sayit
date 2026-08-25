@@ -37,13 +37,23 @@ const DEFAULT_SETTINGS = {
   host: '127.0.0.1',
   voice: 'af_heart',
   speed: 1.0,
-  model: 'onnx-community/Kokoro-82M-v1.0-ONNX',
+  model: 'kokoro-q8',
   unloadAfterMinutes: 10,
 };
 
+function normalizeSettings(settings) {
+  if (typeof settings.model === 'string' && settings.model.includes('/')) {
+    return { ...settings, model: 'kokoro-q8' };
+  }
+  return settings;
+}
+
 export function getSettings() {
   try {
-    return { ...DEFAULT_SETTINGS, ...JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8')) };
+    return normalizeSettings({
+      ...DEFAULT_SETTINGS,
+      ...JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8')),
+    });
   } catch {
     return { ...DEFAULT_SETTINGS };
   }

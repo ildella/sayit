@@ -20,6 +20,41 @@
   const progressPct = $derived(
     appState.player.duration > 0 ? (appState.player.position / appState.player.duration) * 100 : 0
   );
+  const installedModels = $derived(appState.models.filter((m) => m.state === 'installed'));
+  const needsModel = $derived(installedModels.length === 0);
+  const recommended = $derived(appState.models.find((m) => m.stability === 'recommended') || appState.models[0]);
+  const installBusy = $derived(appState.models.some((m) => ['queued', 'downloading', 'verifying', 'canceling'].includes(m.state)));
+  const activeModel = $derived(appState.models.find((m) => m.active));
+
+  function formatBytes(n) {
+    if (!n) return '';
+    if (n >= 1e9) return `${(n / 1e9).toFixed(1)} GB`;
+    return `${Math.round(n / 1e6)} MB`;
+  }
+
+  async function downloadAndUse(id) {
+    appState.error = null;
+    try { await api.installModel(id, true); }
+    catch (err) { appState.error = err.message; }
+  }
+
+  async function downloadOnly(id) {
+    appState.error = null;
+    try { await api.installModel(id, false); }
+    catch (err) { appState.error = err.message; }
+  }
+
+  async function useModel(id) {
+    appState.error = null;
+    try { await api.selectModel(id); }
+    catch (err) { appState.error = err.message; }
+  }
+
+  async function deleteModel(id) {
+    appState.error = null;
+    try { await api.removeModel(id); }
+    catch (err) { appState.error = err.message; }
+  }
 
   async function submit() {
     if (!text.trim() || busy) return;
@@ -59,7 +94,7 @@
       <span class="tag">linux</span>
     </div>
     <nav>
-      {#each [['speak', 'Speak'], ['history', 'History'], ['settings', 'Settings']] as [id, label]}
+      {#each [['speak', 'Speak'], ['history', 'History'], ['settings', 'Settings']] as [id, label] (id)}
         <button class:active={tab === id} onclick={() => (tab = id)}>{label}</button>
       {/each}
     </nav>
@@ -78,6 +113,31 @@
   <main>
     {#if tab === 'speak'}
       <section class="speak">
+        {#if needsModel && recommended}
+          <div class="onboard">
+            <h3>Download a speech model</h3>
+            <p class="dim">Nothing is installed yet. Download Kokoro to start speaking. This is a one-time download; after that the app stays offline.</p>
+            <div class="model-card">
+              <div>
+                <strong>{recommended.displayName}</strong>
+                {#if recommended.stability === 'recommended'}<span class="badge">Recommended</span>{/if}
+                <div class="dim meta">{formatBytes(recommended.estimatedDiskBytes)} · {recommended.license} · {recommended.family}</div>
+                {#if recommended.error}<div class="err-line">{recommended.error}</div>{/if}
+                {#if recommended.state === 'downloading' || recommended.state === 'canceling'}
+                  <div class="dim">Downloading…</div>
+                {/if}
+              </div>
+              {#if recommended.state === 'downloading' || recommended.state === 'canceling'}
+                <button onclick={() => api.cancelModelInstall(recommended.id)}>Cancel</button>
+              {:else}
+                <button class="primary" onclick={() => downloadAndUse(recommended.id)} disabled={installBusy}>
+                  Download and Use {recommended.displayName}
+                </button>
+              {/if}
+            </div>
+            <p class="dim"><button class="link" onclick={() => (tab = 'settings')}>More models in Settings</button></p>
+          </div>
+        {:else}
         <textarea
           rows="7"
           placeholder="Type or paste text to speak… (or use the hotkey: Ctrl+Alt+V speaks the clipboard)"
@@ -89,7 +149,7 @@
           <label>
             Voice
             <select bind:value={voice}>
-              {#each appState.voices as v}
+              {#each appState.voices as v (v.id)}
                 <option value={v.id}>{v.name} ({v.lang})</option>
               {/each}
             </select>
@@ -132,9 +192,9 @@
               {#if appState.engine.loading}
                 model loading…
               {:else if appState.engine.loaded}
-                {appState.engine.model.split('/').pop()}
+                {activeModel?.displayName || appState.engine.model}
               {:else}
-                model unloaded
+                {activeModel?.displayName || 'model unloaded'}
               {/if}
             </span>
             <span>{fmtTime(appState.player.duration)}</span>
@@ -146,6 +206,7 @@
             <summary>Current text</summary>
             <p>{appState.job.text}</p>
           </details>
+        {/if}
         {/if}
       </section>
 
@@ -170,6 +231,40 @@
 
     {:else}
       <section class="settings">
+        <h3>Models</h3>
+        <ul class="model-list">
+          {#each appState.models as m (m.id)}
+            <li class="model-card">
+              <div>
+                <strong>{m.displayName}</strong>
+                {#if m.stability === 'recommended'}<span class="badge">Recommended</span>{/if}
+                <div class="dim meta">{formatBytes(m.estimatedDiskBytes)} · {m.license} · {m.family}</div>
+                {#if m.error}<div class="err-line">{m.error}</div>{/if}
+                {#if m.state === 'downloading' || m.state === 'canceling'}
+                  <div class="dim">{m.state === 'canceling' ? 'Canceling…' : 'Downloading…'}</div>
+                {/if}
+              </div>
+              <div class="model-actions">
+                {#if m.state === 'installed'}
+                  {#if m.active}
+                    <span class="dim">Selected</span>
+                  {:else}
+                    <button onclick={() => useModel(m.id)}>Use</button>
+                    <button class="danger" onclick={() => deleteModel(m.id)}>Delete</button>
+                  {/if}
+                {:else if m.state === 'downloading' || m.state === 'queued' || m.state === 'verifying' || m.state === 'canceling'}
+                  <button onclick={() => api.cancelModelInstall(m.id)}>Cancel</button>
+                {:else}
+                  <button class="primary" onclick={() => downloadAndUse(m.id)} disabled={installBusy}>
+                    Download and Use
+                  </button>
+                  <button onclick={() => downloadOnly(m.id)} disabled={installBusy}>Download</button>
+                {/if}
+              </div>
+            </li>
+          {/each}
+        </ul>
+
         <h3>Defaults</h3>
         <label class="setting">
           <span>Default voice</span>
@@ -177,7 +272,7 @@
             value={appState.settings.voice}
             onchange={(e) => api.saveSettings({ voice: e.target.value }).then((s) => (appState.settings = s))}
           >
-            {#each appState.voices as v}
+            {#each appState.voices as v (v.id)}
               <option value={v.id}>{v.name} ({v.lang})</option>
             {/each}
           </select>
@@ -308,4 +403,20 @@ sayit status · sayit pause · sayit resume</pre>
     border-radius: 4px; padding: 1px 5px; font-size: 12px;
   }
   .dim { color: var(--text-dim); }
+
+  .onboard { display: flex; flex-direction: column; gap: 12px; }
+  .model-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .model-card {
+    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 14px;
+  }
+  .model-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+  .badge {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
+    background: var(--accent-soft); color: var(--accent);
+    padding: 2px 6px; border-radius: 4px; margin-left: 6px;
+  }
+  .err-line { color: var(--danger); font-size: 12px; margin-top: 4px; }
+  button.link { background: none; border: none; color: var(--accent); padding: 0; cursor: pointer; text-decoration: underline; }
 </style>

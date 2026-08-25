@@ -47,13 +47,13 @@ Porting notes for macOS/Windows contributors are welcome — see
 └──────────────┘                              └──────────────────┘
 ```
 
-- **sidecar/** — per-user service: synthesis (Kokoro-82M, q8, CPU),
-  playback via mpv's JSON IPC (pause / seek / speed), history, settings.
-  One model in memory, unloaded after 10 idle minutes (configurable).
-- **app/** — SvelteKit 2 + Svelte 5 UI: speak box, transport controls,
-  speed, history, voices, settings. Built static, served by Tauri.
+- **sidecar/** — per-user service: synthesis (Kokoro ONNX via kokoro-js),
+  playback via mpv's JSON IPC (pause / seek / speed), history, model catalog,
+  settings. One model in memory, unloaded after 10 idle minutes (configurable).
+- **app/** — SvelteKit 2 + Svelte 5 UI: speak box, transport, history, voices,
+  Settings marketplace for models, onboarding when none are installed.
 - **cli/sayit.js** — `sayit "text"`, `printf … | sayit`, `sayit status`,
-  `pause`, `resume`, `stop`, `seek`, `speed`, `voices`, `history`, `replay`.
+  `pause`, `resume`, `stop`, `seek`, `speed`, `voices`, `models`, `history`, `replay`.
 - **src-tauri/** — tray icon, global hotkey (Ctrl+Alt+V speaks clipboard),
   spawns the sidecar, hands the API token to the webview.
 
@@ -74,14 +74,55 @@ bash scripts/install.sh --systemd       # + start automatically at login
 ```
 
 Installs the sidecar to `~/.local/share/sayit/sidecar` and the `sayit`
-command to `~/.local/bin/sayit`, then starts the daemon. First synthesis
-downloads the Kokoro model (~90 MB); everything after that is offline.
+command to `~/.local/bin/sayit`, then starts the daemon. Download a catalog
+model from the app (or `sayit models install kokoro-q8 --use`) before
+speaking; after that the app stays offline.
 
 ```sh
 sayit "Hello from Say It"   # speak
 sayit status                # player + engine status
 sayit service status        # is the daemon running?
 ```
+
+That path is **CLI + sidecar only**. There is no installed `.desktop` launcher yet.
+
+## Desktop app (GUI)
+
+From a clone of this repo, with the sidecar already installed (`npm run setup` or `scripts/install.sh`):
+
+```sh
+npm install                 # once: @tauri-apps/cli
+npm --prefix app install    # once: SvelteKit UI
+npm run dev                 # sidecar + Tauri window
+```
+
+`npm run dev` starts the sidecar and the tray/window. If the daemon is already up (`sayit service start` or systemd), Tauri connects to it instead of spawning a second one.
+
+Equivalent: `npm run tauri dev` (same window; sidecar auto-spawn if port 7878 is free).
+
+```sh
+npm run tauri build         # .deb / AppImage (Linux shell only)
+```
+
+## Models and first run
+
+Speech models are a **catalog**, not a silent download on first speak.
+
+- **Onboarding:** if nothing is installed, the Speak tab shows the recommended model (Kokoro q8, ~90 MB) and **Download and Use**. Deleting the last model brings that screen back.
+- **Marketplace:** Settings → Models lists every catalog entry we can run today (`kokoro-q8` and `kokoro-q4`). Download, Download and Use, cancel, Use, Delete (not the active model).
+- **Progress:** the UI shows downloading / canceling. Byte-level percent is not wired yet (kokoro-js does not expose a reliable byte callback).
+- **Speak never downloads.** `POST /v1/speak` returns 409 until a model is installed and selected.
+
+CLI:
+
+```sh
+sayit models
+sayit models install kokoro-q8 --use
+sayit models select kokoro-q4
+sayit models rm kokoro-q4
+```
+
+Weights land in `~/.cache/sayit/models`. After that the app stays offline. Adding another ONNX family later is a catalog row, not a new Settings screen.
 
 ## Setup (development)
 
@@ -102,9 +143,6 @@ cd ~/.local/share/sayit/sidecar && npm start
 cp scripts/sayit.service ~/.config/systemd/user/
 systemctl --user enable --now sayit
 ```
-
-First synthesis downloads the Kokoro model (~90 MB, q8) from Hugging Face
-into `~/.cache/sayit/models`. Everything after that is fully offline.
 
 ### Desktop app
 
@@ -147,7 +185,9 @@ you can adapt `sayit-clipboard` to use `xclip -o` (PRIMARY) instead.
 ## API (v1)
 
 `GET /v1/status` · `POST /v1/speak|pause|resume|stop|seek|speed` ·
-`GET /v1/voices|models|history|settings` · `POST /v1/history/replay` ·
+`GET /v1/voices|models|history|settings` ·
+`POST /v1/models/:id/install|select` · `DELETE /v1/models/:id[/install]` ·
+`POST /v1/history/replay` ·
 `DELETE /v1/history/:id` · `GET /v1/events` (SSE) — all behind
 `Authorization: Bearer <token>`.
 

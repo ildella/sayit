@@ -100,6 +100,9 @@ Usage:
   sayit speed <0.5-4>      Set playback speed
   sayit voices             List voices
   sayit models             List models
+  sayit models install <id> [--use]
+  sayit models select <id>
+  sayit models rm <id>
   sayit history            Show history
   sayit replay <id>        Replay a history entry
   sayit rm <id>            Delete a history entry
@@ -156,9 +159,34 @@ try {
       break;
     }
 
-    case 'models':
-      console.log(await api('GET', '/v1/models'));
+    case 'models': {
+      const sub = args[0];
+      if (!sub) {
+        const listed = await api('GET', '/v1/models');
+        for (const m of listed) {
+          const flag = m.active ? 'active' : m.state;
+          const size = Math.round((m.estimatedDiskBytes || 0) / 1e6);
+          console.log(`${m.id.padEnd(14)} ${m.displayName.padEnd(16)} ${flag.padEnd(14)} ${size}MB`);
+        }
+        break;
+      }
+      const id = args[1];
+      if (sub === 'install') {
+        const use = args.includes('--use');
+        await api('POST', `/v1/models/${id}/install`, { selectAfterInstall: use });
+        console.log('ok');
+      } else if (sub === 'select') {
+        await api('POST', `/v1/models/${id}/select`);
+        console.log('ok');
+      } else if (sub === 'rm') {
+        await api('DELETE', `/v1/models/${id}`);
+        console.log('ok');
+      } else {
+        console.log('Usage: sayit models [install|select|rm] <id>');
+        process.exitCode = 1;
+      }
       break;
+    }
 
     case 'history': {
       for (const e of await api('GET', '/v1/history')) {

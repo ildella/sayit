@@ -1,5 +1,5 @@
 // Shared reactive state (Svelte 5 runes), fed by the sidecar's SSE stream.
-import { openEvents, getStatus, getVoices, getHistory, getSettings } from './api.js';
+import { openEvents, getStatus, getVoices, getHistory, getSettings, getModels } from './api.js';
 
 export const state = $state({
   connected: false,
@@ -8,6 +8,7 @@ export const state = $state({
   job: null,          // { phase: 'synthesizing'|'playing'|'done', text }
   progress: null,     // { chunk, totalChunks }
   voices: [],
+  models: [],
   history: [],
   settings: { voice: 'af_heart', speed: 1.0, unloadAfterMinutes: 10 },
   error: null,
@@ -19,8 +20,8 @@ export async function initStore() {
   if (started) return;
   started = true;
   try {
-    const [status, voices, history, settings] = await Promise.all([
-      getStatus(), getVoices(), getHistory(), getSettings(),
+    const [status, voices, history, settings, models] = await Promise.all([
+      getStatus(), getVoices(), getHistory(), getSettings(), getModels(),
     ]);
     state.player = status.player;
     state.engine = status.engine;
@@ -28,6 +29,7 @@ export async function initStore() {
     state.voices = voices;
     state.history = history;
     state.settings = settings;
+    state.models = models;
     state.connected = true;
   } catch (err) {
     state.error = `Cannot reach the sayit service: ${err.message}`;
@@ -39,6 +41,7 @@ export async function initStore() {
     job: (j) => { state.job = j; if (j.phase !== 'synthesizing') state.progress = null; },
     progress: (p) => { state.progress = p; },
     history: (entry) => { state.history = [entry, ...state.history].slice(0, 200); },
+    models: (models) => { state.models = models; },
     error: (e) => { state.error = e.message; },
     closed: () => {
       state.connected = false;

@@ -49,8 +49,12 @@ chunks at sentence boundaries (~400 chars), synthesizes chunk-by-chunk
 header in pure JS** — no ffmpeg dependency. Sample rate is taken from the
 model output, not hardcoded (except as fallback).
 
-Model lifecycle mirrors the original: one model in memory, unloaded after N
-idle minutes (default 10, `unloadAfterMinutes` in settings).
+Model lifecycle: a **catalog** (`sidecar/src/catalog.json`) lists engines we
+can actually run (today: Kokoro q8 and q4). Install is explicit
+(`POST /v1/models/:id/install`); first speak does **not** download. One
+model stays in memory and unloads after N idle minutes
+(`unloadAfterMinutes`). The Settings list is a marketplace; Speak shows
+onboarding when zero models are installed.
 
 ## 3. Service architecture: HTTP + token, not direct embedding
 
@@ -153,7 +157,7 @@ disk. Anything that needs the API should resolve the token the same way.
 
 ## 8. Known limitations (vs the original)
 
-1. Kokoro only; no voice cloning, no other model families (§2).
+1. Kokoro family only (q8 / q4 ONNX); no voice cloning, no MLX/Python families (§2). Marketplace UI is ready for more catalog rows later.
 2. No selection capture, clipboard only (§5).
 3. Global hotkey X11-only inside the app; Wayland needs the DE-bound script
    (§5).
@@ -170,6 +174,7 @@ disk. Anything that needs the API should resolve the token the same way.
   needs one, it doesn't belong in the sidecar.
 - **Loopback + token** on the HTTP API, always.
 - **engine.js is a boundary** — engine-agnostic interface out, kokoro-js in.
+- **Models come from the catalog** — do not hardcode Hugging Face ids in the UI.
 - **Offline after first model download**; no analytics, no telemetry, no
   passive clipboard monitoring (the original's privacy posture is part of
   the product).

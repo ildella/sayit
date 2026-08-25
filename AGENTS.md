@@ -18,6 +18,7 @@ Crucial reminders for future sessions. See LINUX.md for full architecture.
 - **Svelte `$state` naming collision**: `store.svelte.js` exports `state`, which conflicts with the `$state` rune in components. `+page.svelte` imports it as `appState` — keep it that way, or rename the store export.
 - **CORS** is `*` on loopback + token — don't tighten without handling vite dev server.
 - **Engine boundary**: `engine.js` is the kokoro-js isolation layer; don't leak types past it.
+- **Models come from `sidecar/src/catalog.json`** — do not hardcode Hugging Face ids in the UI.
 
 ## Invariants (from LINUX.md §9)
 
