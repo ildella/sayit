@@ -1,0 +1,16 @@
+{
+  "name": "sayit-linux",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Private, local text-to-speech for Linux — a port of callebtc/sayit",
+  "license": "MIT",
+  "scripts": {
+    "dev": "npm --prefix sidecar run start & npm run tauri dev",
+    "build:app": "npm --prefix app run build",
+    "setup": "sh scripts/setup-sidecar.sh",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

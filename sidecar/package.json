@@ -1,0 +1,22 @@
+{
+  "name": "sayit-sidecar",
+  "version": "0.1.0",
+  "description": "Say It Linux — per-user TTS backend service (pure JavaScript)",
+  "type": "module",
+  "license": "MIT",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "kokoro-js": "^1.2.1"
+  },
+  "allowScripts": {
+    "onnxruntime-node@1.21.0": true,
+    "sharp@0.34.5": true,
+    "protobufjs@7.6.5": true
+  }
+}
