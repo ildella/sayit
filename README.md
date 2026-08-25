@@ -59,7 +59,7 @@ Requirements: Node ≥ 20, npm, and **mpv** for playback (falls back to `aplay`)
 Clipboard tools (`wl-paste` / `xclip` / `xsel`) only if you want the hotkey.
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/ildella/sayit/main/scripts/install.sh | bash -s -- --systemd
+curl -fsSL https://raw.githubusercontent.com/ildella/sayit/master/scripts/install.sh | bash -s -- --systemd
 ```
 
 Or from a clone of this repo:
