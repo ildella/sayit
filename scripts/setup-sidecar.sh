@@ -11,9 +11,10 @@ mkdir -p "$DEST" "$BIN"
 rm -rf "$DEST/sidecar"
 cp -r "$SRC/sidecar" "$DEST/sidecar"
 cd "$DEST/sidecar"
-# npm run exports its config as npm_config_* env vars; the user's global
-# allow-scripts then trips npm 12's EALLOWSCRIPTS in project installs.
-npm_config_allow_scripts= npm install --omit=dev
+# User ~/.npmrc often has allow-scripts=…; npm 12 warns (and can fail)
+# when package.json also has allowScripts. Isolate from userconfig.
+# npm run also exports npm_config_* — clear allow-scripts the same way.
+npm_config_allow_scripts= npm install --omit=dev --userconfig /dev/null
 
 cp "$SRC/cli/sayit.js" "$BIN/sayit"
 cp "$SRC/scripts/sayit-clipboard.sh" "$BIN/sayit-clipboard"
