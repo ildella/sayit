@@ -79,7 +79,8 @@ if [ "$SYSTEMD" = yes ]; then
     cp "$SRC/scripts/sayit.service" "$HOME/.config/systemd/user/sayit.service"
     systemctl --user daemon-reload
     if systemctl --user enable --now sayit; then
-      echo "Autostart enabled (systemd --user unit)."
+      echo
+      echo "✓  Autostart  systemd --user unit enabled"
     else
       echo "warning: could not enable the systemd unit — start the service manually with: sayit service start" >&2
     fi
@@ -96,9 +97,18 @@ case ":$PATH:" in
   *) echo "warning: ~/.local/bin is not on your PATH — add it, then reopen your terminal." >&2 ;;
 esac
 
+if [ -t 1 ]; then
+  BOLD="$(printf '\033[1m')"
+  RESET="$(printf '\033[0m')"
+else
+  BOLD= RESET=
+fi
+
 echo
-echo "Say It installed."
-echo "  service: ~/.local/share/sayit/sidecar"
-echo "  command: $(command -v sayit)"
-echo "Test it with:  sayit \"Hello from Say It\""
-echo "Status:        sayit service status"
+echo "${BOLD}★  Say It installed${RESET}"
+echo "     service  ~/.local/share/sayit/sidecar"
+echo "     command  $(command -v sayit)"
+echo
+echo "→  Next"
+echo "     sayit \"Hello from Say It\""
+echo "     sayit service status"
