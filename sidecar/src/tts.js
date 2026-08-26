@@ -34,15 +34,18 @@ export function voiceRegistry(catalog) {
 
 const REGISTRY = voiceRegistry();
 
-export function resolveVoice(voice) {
+export function resolveVoice(voice, model = getModel(getSettings().model)) {
   const id = voice || getSettings().voice;
   const meta = REGISTRY[id];
-  if (!meta) {
-    const err = new Error(`Unknown voice: ${id}`);
-    err.code = 'voice.unknown';
-    throw err;
-  }
-  return { id, ...meta };
+  if (meta) return { id, ...meta };
+  // Stale ids (e.g. kokoro Italian bins like im_nicola) fall back to the
+  // active model's default instead of blocking speak.
+  const fallback = model?.defaultVoice;
+  const fb = fallback && REGISTRY[fallback];
+  if (fb) return { id: fallback, ...fb };
+  const err = new Error(`Unknown voice: ${id}`);
+  err.code = 'voice.unknown';
+  throw err;
 }
 
 export async function synthesize(text, opts = {}) {

@@ -124,7 +124,8 @@ export function createServer() {
           if (!text || !text.trim()) return json(res, 400, { error: 'text is required' });
           try {
             const active = getModel(getSettings().model);
-            const v = resolveVoice(voice);
+            const v = resolveVoice(voice, active);
+            if (!voice && v.id !== getSettings().voice) saveSettings({ voice: v.id });
             if (v.family !== active.family) {
               return json(res, 409, {
                 error: `Voice "${v.id}" belongs to the ${v.family} engine but the active model is ${active.family}. Select the matching model first.`,

@@ -19,5 +19,14 @@ test('piper playback speed is 1 so mpv does not double-stretch', () => {
 
 test('resolveVoice falls back to settings default and rejects unknown', () => {
   assert.equal(resolveVoice('piper_it_paola').id, 'piper_it_paola');
-  assert.throws(() => resolveVoice('nope'), (err) => err.code === 'voice.unknown');
+  assert.throws(
+    () => resolveVoice('nope', { defaultVoice: 'missing' }),
+    (err) => err.code === 'voice.unknown',
+  );
+});
+
+test('stale kokoro italian id falls back to active piper voice', () => {
+  const v = resolveVoice('im_nicola', { defaultVoice: 'piper_it_riccardo' });
+  assert.equal(v.id, 'piper_it_riccardo');
+  assert.equal(v.family, 'piper');
 });
