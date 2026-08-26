@@ -161,8 +161,9 @@ disk. Anything that needs the API should resolve the token the same way.
 2. No selection capture, clipboard only (§5).
 3. Global hotkey X11-only inside the app; Wayland needs the DE-bound script
    (§5).
-4. English voices only (Kokoro's multilingual support is limited; the
-   `VOICES` table in `engine.js` lists what ships).
+4. English voices only. kokoro-js ships Italian/ES/FR/PT voice *bins* but
+    its phonemizer WASM is English-only, so those ids fail at generate.
+    The `VOICES` table in `engine.js` lists what actually works.
 5. Single in-flight job; no queue (§3).
 6. Linux only — nothing here is tested on macOS/Windows, though the sidecar
    and CLI are platform-agnostic in principle (mpv/aplay are the
