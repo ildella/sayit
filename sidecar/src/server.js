@@ -1,9 +1,10 @@
 import http from 'node:http';
 import fs from 'node:fs';
-import { synthesize, engineState, VOICES } from './engine.js';
+import { synthesize, engineState, resolveVoice, voiceRegistry, playbackSpeed } from './tts.js';
 import { player } from './player.js';
 import { addHistory, listHistory, getHistory, deleteHistory } from './history.js';
 import { getToken, getSettings, saveSettings } from './config.js';
+import { getModel } from './catalog.js';
 import { modelStore } from './store.js';
 
 /**
@@ -58,13 +59,14 @@ async function speak(text, { voice, speed } = {}) {
   });
   if (abort.signal.aborted) return { aborted: true };
 
-  const effectiveSpeed = speed || getSettings().speed;
-  await player.play(result.file, { speed: effectiveSpeed, volume: getSettings().volume });
+  const requestedSpeed = speed || getSettings().speed;
+  const playSpeed = playbackSpeed(getModel(getSettings().model).engine, requestedSpeed);
+  await player.play(result.file, { speed: playSpeed, volume: getSettings().volume });
   job.phase = 'playing';
   broadcast('job', { phase: job.phase, text, file: result.file });
 
   const entry = addHistory({
-    text, voice: voice || getSettings().voice, speed: effectiveSpeed,
+    text, voice: voice || getSettings().voice, speed: playSpeed,
     file: result.file, durationSec: result.durationSec,
   });
   broadcast('history', entry);
@@ -121,6 +123,14 @@ export function createServer() {
           const { text, voice, speed } = await readBody(req);
           if (!text || !text.trim()) return json(res, 400, { error: 'text is required' });
           try {
+            const active = getModel(getSettings().model);
+            const v = resolveVoice(voice);
+            if (v.family !== active.family) {
+              return json(res, 409, {
+                error: `Voice "${v.id}" belongs to the ${v.family} engine but the active model is ${active.family}. Select the matching model first.`,
+                code: 'voice.model_mismatch',
+              });
+            }
             if (!modelStore.isInstalled(getSettings().model)) {
               return json(res, 409, { error: 'Model is not installed', code: 'model.not_installed' });
             }
@@ -167,7 +177,7 @@ export function createServer() {
         }
 
         case 'GET /v1/voices':
-          return json(res, 200, Object.entries(VOICES).map(([id, v]) => ({ id, ...v })));
+          return json(res, 200, Object.entries(voiceRegistry()).map(([id, v]) => ({ id, ...v })));
 
         case 'GET /v1/models':
           return json(res, 200, modelStore.listModels());

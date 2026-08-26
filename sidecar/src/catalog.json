@@ -26,6 +26,38 @@
       "estimatedDiskBytes": 50000000,
       "license": "Apache-2.0",
       "stability": "available"
+    },
+    {
+      "id": "piper-it-paola",
+      "displayName": "Piper Italiano (Paola)",
+      "family": "piper",
+      "engine": "piper-onnx",
+      "repository": "rhasspy/piper-voices",
+      "revision": "v1.0.0",
+      "voicePath": "it/it_IT/paola/medium/it_IT-paola-medium.onnx",
+      "dtype": "onnx",
+      "languages": ["it"],
+      "gender": "female",
+      "defaultVoice": "piper_it_paola",
+      "estimatedDiskBytes": 65000000,
+      "license": "MIT",
+      "stability": "recommended"
+    },
+    {
+      "id": "piper-it-riccardo",
+      "displayName": "Piper Italiano (Riccardo)",
+      "family": "piper",
+      "engine": "piper-onnx",
+      "repository": "rhasspy/piper-voices",
+      "revision": "v1.0.0",
+      "voicePath": "it/it_IT/riccardo/x_low/it_IT-riccardo-x_low.onnx",
+      "dtype": "onnx",
+      "languages": ["it"],
+      "gender": "male",
+      "defaultVoice": "piper_it_riccardo",
+      "estimatedDiskBytes": 25000000,
+      "license": "MIT",
+      "stability": "available"
     }
   ]
 }

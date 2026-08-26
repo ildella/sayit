@@ -17,7 +17,18 @@ Crucial reminders for future sessions. See LINUX.md for full architecture.
 - **ONNX postinstall scripts**: `onnxruntime-node`, `sharp`, `protobufjs` need install-scripts approval after fresh install.
 - **Svelte `$state` naming collision**: `store.svelte.js` exports `state`, which conflicts with the `$state` rune in components. `+page.svelte` imports it as `appState` — keep it that way, or rename the store export.
 - **CORS** is `*` on loopback + token — don't tighten without handling vite dev server.
-- **Engine boundary**: `engine.js` is the kokoro-js isolation layer; don't leak types past it.
+- **Engine boundary**: `engine.js` (kokoro-js) and `piper.js` are the only engine
+  isolation layers; don't leak kokoro-js / onnxruntime / espeak types past them.
+  `tts.js` is the router the server talks to.
+- **Audio helpers**: `audio.js` (`chunkText`, `f32ToPcm16`, `buildWav`) is shared by
+  both engines — add cross-engine logic there, not in a single engine file.
+- **Piper needs `espeak-ng` CLI**: non-English G2P runs `espeak-ng --ipa` (distro
+  package, like mpv). Not Python, not a build step. If missing, synthesis fails
+  with `tts.espeak_missing`. Required only for Piper voices, not Kokoro.
+  Live Piper smoke is manual; sidecar unit tests mock espeak and ONNX.
+- **Piper bakes speed into the WAV** (`length_scale = 1/speed`). Play those
+  files at mpv speed `1` (`playbackSpeed()` in `tts.js`) or Italian will
+  double-stretch.
 - **Models come from `sidecar/src/catalog.json`** — do not hardcode Hugging Face ids in the UI.
 
 ## Invariants (from LINUX.md §9)

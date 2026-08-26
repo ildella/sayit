@@ -14,7 +14,8 @@
   // onMount: a second initStore() used to return before voices existed, so
   // the <select> stayed blank. Only overwrite when the current id is missing.
   $effect(() => {
-    const known = appState.voices;
+    const family = models.find((m) => m.active)?.family;
+    const known = appState.voices.filter((v) => !family || !v.family || v.family === family);
     if (!known.length) return;
     if (!known.some((v) => v.id === voice)) {
       const fallback = appState.settings.voice;
@@ -30,6 +31,18 @@
     appState.player.duration > 0 ? (appState.player.position / appState.player.duration) * 100 : 0
   );
   const models = $derived(Array.isArray(appState.models) ? appState.models : []);
+  // Group voices by language for <optgroup> pickers (en-us, en-gb, it, …).
+  // Only show voices that belong to the active model's family.
+  const voiceGroups = $derived.by(() => {
+    const groups = new Map();
+    const family = activeModel?.family;
+    for (const v of appState.voices) {
+      if (family && v.family && v.family !== family) continue;
+      if (!groups.has(v.lang)) groups.set(v.lang, []);
+      groups.get(v.lang).push(v);
+    }
+    return [...groups.entries()];
+  });
   const installedModels = $derived(models.filter((m) => m.state === 'installed'));
   const needsModel = $derived(installedModels.length === 0);
   const recommended = $derived(models.find((m) => m.stability === 'recommended') || models[0]);
@@ -145,12 +158,12 @@
         {#if needsModel && recommended}
           <div class="onboard">
             <h3>Download a speech model</h3>
-            <p class="dim">Nothing is installed yet. Download Kokoro to start speaking. This is a one-time download; after that the app stays offline.</p>
+            <p class="dim">Nothing is installed yet. Download a model to start speaking. This is a one-time download; after that the app stays offline.</p>
             <div class="model-card">
               <div>
                 <strong>{recommended.displayName}</strong>
                 {#if recommended.stability === 'recommended'}<span class="badge">Recommended</span>{/if}
-                <div class="dim meta">{formatBytes(recommended.estimatedDiskBytes)} · {recommended.license} · {recommended.family}</div>
+                <div class="dim meta">{formatBytes(recommended.estimatedDiskBytes)} · {recommended.license} · {recommended.family} · {(recommended.languages || []).join(', ')}</div>
                 {#if recommended.error}<div class="err-line">{recommended.error}</div>{/if}
                 {#if recommended.state === 'downloading' || recommended.state === 'canceling'}
                   <div class="dim">Downloading…</div>
@@ -178,8 +191,12 @@
           <label>
             Voice
             <select bind:value={voice}>
-              {#each appState.voices as v (v.id)}
-                <option value={v.id}>{v.name} ({v.lang})</option>
+              {#each voiceGroups as [lang, vs] (lang)}
+                <optgroup label={lang}>
+                  {#each vs as v (v.id)}
+                    <option value={v.id}>{v.name}</option>
+                  {/each}
+                </optgroup>
               {/each}
             </select>
           </label>
@@ -276,7 +293,7 @@
               <div>
                 <strong>{m.displayName}</strong>
                 {#if m.stability === 'recommended'}<span class="badge">Recommended</span>{/if}
-                <div class="dim meta">{formatBytes(m.estimatedDiskBytes)} · {m.license} · {m.family}</div>
+                <div class="dim meta">{formatBytes(m.estimatedDiskBytes)} · {m.license} · {m.family} · {(m.languages || []).join(', ')}</div>
                 {#if m.error}<div class="err-line">{m.error}</div>{/if}
                 {#if m.state === 'downloading' || m.state === 'canceling'}
                   <div class="dim">{m.state === 'canceling' ? 'Canceling…' : 'Downloading…'}</div>
@@ -310,8 +327,12 @@
             value={appState.settings.voice}
             onchange={(e) => api.saveSettings({ voice: e.target.value }).then((s) => (appState.settings = s))}
           >
-            {#each appState.voices as v (v.id)}
-              <option value={v.id}>{v.name} ({v.lang})</option>
+            {#each voiceGroups as [lang, vs] (lang)}
+              <optgroup label={lang}>
+                {#each vs as v (v.id)}
+                  <option value={v.id}>{v.name} ({lang})</option>
+                {/each}
+              </optgroup>
             {/each}
           </select>
         </label>

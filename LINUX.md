@@ -23,38 +23,41 @@ the original's architecture, CLI surface, and privacy guarantees.
 | macOS Services menu | `sayit-clipboard.sh`, bound as a DE custom shortcut | DE-agnostic equivalent of a system service |
 | `sayit` CLI | Identical CLI surface (`cli/sayit.js`) | Deliberate parity: same commands, same behavior |
 
-## 2. Why kokoro-js, and why it's the only engine
+## 2. Two engines: Kokoro (English) and Piper ONNX (other languages)
 
 Hard constraint from the maintainer: **the sidecar must be pure JavaScript —
-no Python**. That eliminates the entire Piper/Coqui/Chatterbox/Qwen3-TTS
-ecosystem, which is Python-bound.
+no Python**. That still rules out Coqui/Chatterbox/Qwen3-TTS and the official
+Python Piper stack. It does **not** rule out Piper's **ONNX weights**: those
+are plain VITS graphs we run on the same `onnxruntime-node` as Kokoro.
 
-Kokoro-82M is the one high-quality open TTS model with a production-grade JS
-runtime (`kokoro-js`, via `@huggingface/transformers` + `onnxruntime-node`,
-q8-quantized ONNX, CPU-only, ~90 MB download). It is therefore the **sole
-engine** in this port. Consequences:
+- **Kokoro-82M** (`kokoro-js`) is the English engine: q8/q4 ONNX, CPU-only,
+  ~90 MB. Isolated in `sidecar/src/engine.js`. **Do not leak kokoro-js types
+  past this module.**
+- **Piper ONNX** is the multilingual engine (Italian first: Paola / Riccardo).
+  Isolated in `sidecar/src/piper.js`. G2P is the system `espeak-ng` CLI
+  (`--ipa`), same class of distro dependency as mpv — not a build step, not
+  Python. **Do not leak onnxruntime / espeak types past this module.**
+- `sidecar/src/tts.js` is the router the server talks to. Adding a language
+  later is a catalog row + an `espeak-ng` voice name.
 
-- **No voice cloning** — Kokoro doesn't support it. The original's Voice
-  Studio feature is absent by necessity, not by choice.
-- **No other models** (Qwen3-TTS, Chatterbox, OmniVoice are MLX or Python).
-- The engine is isolated behind `sidecar/src/engine.js` (`synthesize()`,
-  `engineState()`, `VOICES`) so a second backend (e.g. a future ONNX export
-  of another model, or an optional native Piper binding) can slot in without
-  touching the server, player, or UI. **Do not leak kokoro-js types past
-  this module.**
+Consequences:
 
-Long-text handling: Kokoro can't ingest arbitrary length, so `engine.js`
-chunks at sentence boundaries (~400 chars), synthesizes chunk-by-chunk
-(progress events over SSE), and **concatenates raw PCM16 and rewrites the WAV
-header in pure JS** — no ffmpeg dependency. Sample rate is taken from the
-model output, not hardcoded (except as fallback).
+- **No voice cloning** — neither engine supports it.
+- **No GPU / MIGraphX** — Kokoro is 82M; a native AMD runtime buys nothing
+  the user can hear. Revisit only if a heavy TTS lands.
+- **No Python Piper** — we download `.onnx` + `.onnx.json` from
+  `rhasspy/piper-voices` and feed phoneme ids ourselves.
+
+Long-text handling lives in `sidecar/src/audio.js` (shared): chunk at
+sentence boundaries (~400 chars), concatenate PCM16, rewrite the WAV header
+in pure JS. Piper reads `audio.sample_rate` from the model JSON (typically
+16–22 kHz); Kokoro is 24 kHz.
 
 Model lifecycle: a **catalog** (`sidecar/src/catalog.json`) lists engines we
-can actually run (today: Kokoro q8 and q4). Install is explicit
-(`POST /v1/models/:id/install`); first speak does **not** download. One
-model stays in memory and unloads after N idle minutes
-(`unloadAfterMinutes`). The Settings list is a marketplace; Speak shows
-onboarding when zero models are installed.
+can actually run. Install is explicit (`POST /v1/models/:id/install`); first
+speak does **not** download. One model stays in memory and unloads after N
+idle minutes (`unloadAfterMinutes`). The Settings list is a marketplace;
+Speak shows onboarding when zero models are installed.
 
 ## 3. Service architecture: HTTP + token, not direct embedding
 
@@ -157,13 +160,14 @@ disk. Anything that needs the API should resolve the token the same way.
 
 ## 8. Known limitations (vs the original)
 
-1. Kokoro family only (q8 / q4 ONNX); no voice cloning, no MLX/Python families (§2). Marketplace UI is ready for more catalog rows later.
+1. Two ONNX families only (Kokoro q8/q4 for English; Piper CPU for other
+   languages). No voice cloning, no MLX/Python families, no GPU (§2).
 2. No selection capture, clipboard only (§5).
 3. Global hotkey X11-only inside the app; Wayland needs the DE-bound script
    (§5).
-4. English voices only. kokoro-js ships Italian/ES/FR/PT voice *bins* but
-    its phonemizer WASM is English-only, so those ids fail at generate.
-    The `VOICES` table in `engine.js` lists what actually works.
+4. Kokoro remains English-only (its phonemizer WASM is `en*`). Italian is
+   Piper + system `espeak-ng`. Live Piper smoke is manual; unit tests mock
+   espeak and ONNX.
 5. Single in-flight job; no queue (§3).
 6. Linux only — nothing here is tested on macOS/Windows, though the sidecar
    and CLI are platform-agnostic in principle (mpv/aplay are the
@@ -174,7 +178,8 @@ disk. Anything that needs the API should resolve the token the same way.
 - **No Python, no new native build steps** in the sidecar. If a feature
   needs one, it doesn't belong in the sidecar.
 - **Loopback + token** on the HTTP API, always.
-- **engine.js is a boundary** — engine-agnostic interface out, kokoro-js in.
+- **engine.js and piper.js are boundaries** — `tts.js` routes; do not leak
+  kokoro-js / onnxruntime / espeak types past those modules.
 - **Models come from the catalog** — do not hardcode Hugging Face ids in the UI.
 - **Offline after first model download**; no analytics, no telemetry, no
   passive clipboard monitoring (the original's privacy posture is part of

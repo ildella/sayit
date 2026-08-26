@@ -10,13 +10,16 @@ function tmpDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'sayit-models-'));
 }
 
-function store(dir, { active = 'kokoro-q8', installFiles, unload } = {}) {
+function store(dir, { active = 'kokoro-q8', voice = 'af_heart', installFiles, unload } = {}) {
   let activeId = active;
-  return createModelStore({
+  let activeVoice = voice;
+  const s = createModelStore({
     modelsDir: dir,
     catalog: loadCatalog(),
     getActiveId: () => activeId,
     setActiveId: (id) => { activeId = id; },
+    getVoice: () => activeVoice,
+    setVoice: (v) => { activeVoice = v; },
     installFiles: installFiles ?? (async ({ model }) => {
       const p = path.join(dir, '.installed');
       fs.mkdirSync(p, { recursive: true });
@@ -24,11 +27,13 @@ function store(dir, { active = 'kokoro-q8', installFiles, unload } = {}) {
     }),
     unloadEngine: unload,
   });
+  s.activeVoice = () => activeVoice;
+  return s;
 }
 
-test('list starts with both SKUs not installed', () => {
+test('list starts with every SKU not installed', () => {
   const listed = store(tmpDir()).listModels();
-  assert.equal(listed.length, 2);
+  assert.equal(listed.length, 4);
   assert.ok(listed.every((m) => m.state === 'notInstalled'));
   assert.ok(listed.every((m) => m.active === false));
 });
@@ -99,4 +104,74 @@ test('legacy q8 onnx cache counts as installed', () => {
   const listed = store(dir).listModels();
   assert.equal(listed.find((m) => m.id === 'kokoro-q8').state, 'installed');
   assert.equal(listed.find((m) => m.id === 'kokoro-q4').state, 'notInstalled');
+});
+
+test('piper install writes onnx+json and counts as installed', async () => {
+  const dir = tmpDir();
+  const s = store(dir, {
+    installFiles: async ({ model }) => {
+      const piperDir = path.join(dir, 'piper', model.id);
+      fs.mkdirSync(piperDir, { recursive: true });
+      const base = path.basename(model.voicePath);
+      fs.writeFileSync(path.join(piperDir, base), 'onnx');
+      fs.writeFileSync(path.join(piperDir, `${base}.json`), '{}');
+    },
+  });
+  await s.install('piper-it-paola');
+  const paola = s.listModels().find((m) => m.id === 'piper-it-paola');
+  assert.equal(paola.state, 'installed');
+  s.select('piper-it-paola');
+  assert.equal(s.listModels().find((m) => m.id === 'piper-it-paola').active, true);
+});
+
+test('select piper model switches voice to that family', async () => {
+  const dir = tmpDir();
+  const s = store(dir, {
+    installFiles: async ({ model }) => {
+      if (model.voicePath) {
+        const piperDir = path.join(dir, 'piper', model.id);
+        fs.mkdirSync(piperDir, { recursive: true });
+        const base = path.basename(model.voicePath);
+        fs.writeFileSync(path.join(piperDir, base), 'onnx');
+        fs.writeFileSync(path.join(piperDir, `${base}.json`), '{}');
+        return;
+      }
+      const p = path.join(dir, '.installed');
+      fs.mkdirSync(p, { recursive: true });
+      fs.writeFileSync(path.join(p, model.id), 'ok');
+    },
+  });
+  await s.install('kokoro-q8');
+  await s.install('piper-it-paola');
+  s.select('kokoro-q8');
+  assert.equal(s.activeVoice(), 'af_heart');
+  s.select('piper-it-paola');
+  assert.equal(s.activeVoice(), 'piper_it_paola');
+  s.select('kokoro-q8');
+  assert.equal(s.activeVoice(), 'af_heart');
+});
+
+test('piper without config json is not installed', () => {
+  const dir = tmpDir();
+  const piperDir = path.join(dir, 'piper', 'piper-it-paola');
+  fs.mkdirSync(piperDir, { recursive: true });
+  fs.writeFileSync(path.join(piperDir, 'it_IT-paola-medium.onnx'), 'onnx');
+  assert.equal(store(dir).listModels().find((m) => m.id === 'piper-it-paola').state, 'notInstalled');
+});
+
+test('remove piper model deletes its directory', async () => {
+  const dir = tmpDir();
+  const piperDir = path.join(dir, 'piper', 'piper-it-paola');
+  const s = store(dir, {
+    installFiles: async ({ model }) => {
+      fs.mkdirSync(path.join(dir, 'piper', model.id), { recursive: true });
+      const base = path.basename(model.voicePath);
+      fs.writeFileSync(path.join(dir, 'piper', model.id, base), 'onnx');
+      fs.writeFileSync(path.join(dir, 'piper', model.id, `${base}.json`), '{}');
+    },
+  });
+  await s.install('piper-it-paola');
+  s.remove('piper-it-paola');
+  assert.equal(fs.existsSync(piperDir), false);
+  assert.equal(s.listModels().find((m) => m.id === 'piper-it-paola').state, 'notInstalled');
 });

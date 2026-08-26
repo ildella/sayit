@@ -16,6 +16,10 @@ export function loadCatalog(source) {
     for (const key of REQUIRED) {
       if (!model[key]) throw new Error(`Catalog model missing ${key}`);
     }
+    // Piper-style single-voice rows must say where the ONNX lives in the repo.
+    if (model.engine === 'piper-onnx' && !model.voicePath) {
+      throw new Error(`Catalog model ${model.id} missing voicePath`);
+    }
     if (ids.has(model.id)) throw new Error(`Duplicate catalog id ${model.id}`);
     ids.add(model.id);
   }

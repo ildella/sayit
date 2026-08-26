@@ -15,7 +15,7 @@ swapping every Apple-specific layer for portable equivalents:
 | macOS original            | This port                                   |
 | ------------------------- | ------------------------------------------- |
 | SwiftUI menu-bar app      | Tauri v2 + SvelteKit 2 / Svelte 5 tray app  |
-| MLX Audio (Apple silicon) | **kokoro-js** — Kokoro-82M on onnxruntime-node, pure JavaScript |
+| MLX Audio (Apple silicon) | **kokoro-js** (English) + **Piper ONNX** (other languages), both on onnxruntime-node |
 | XPC                       | Token-protected REST API on 127.0.0.1:7878 + SSE |
 | Accessibility selection   | Clipboard hotkey (see Wayland notes below)  |
 | macOS Services            | `sayit-clipboard`, bindable in any DE       |
@@ -41,15 +41,16 @@ Porting notes for macOS/Windows contributors are welcome — see
 ```
 ┌──────────────┐   REST + SSE, Bearer token   ┌──────────────────┐
 │ Tauri v2 app │ ◄──────────────────────────► │ sidecar (Node)   │
-│ SvelteKit UI │                              │ kokoro-js engine │
+│ SvelteKit UI │                              │ kokoro + piper   │
 │ sayit CLI    │ ◄──────────────────────────► │ mpv playback     │
 │ sayit-clipboard                            │ history, models  │
 └──────────────┘                              └──────────────────┘
 ```
 
-- **sidecar/** — per-user service: synthesis (Kokoro ONNX via kokoro-js),
-  playback via mpv's JSON IPC (pause / seek / speed / volume), history, model catalog,
-  settings. One model in memory, unloaded after 10 idle minutes (configurable).
+- **sidecar/** — per-user service: synthesis (Kokoro for English; Piper ONNX
+  for other languages, Italian first), playback via mpv's JSON IPC
+  (pause / seek / speed / volume), history, model catalog, settings. One
+  model in memory, unloaded after 10 idle minutes (configurable).
 - **app/** — SvelteKit 2 + Svelte 5 UI: speak box, transport, history, voices,
   Settings marketplace for models, onboarding when none are installed.
 - **cli/sayit.js** — `sayit "text"`, `printf … | sayit`, `sayit status`,
@@ -61,6 +62,8 @@ Porting notes for macOS/Windows contributors are welcome — see
 
 Requirements: Node ≥ 20, npm, and **mpv** for playback (falls back to `aplay`).
 Clipboard tools (`wl-paste` / `xclip` / `xsel`) only if you want the hotkey.
+**espeak-ng** is optional and only required for Piper (non-English) voices
+(`sudo apt install espeak-ng` or your distro equivalent).
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/ildella/sayit/master/scripts/install.sh | bash -s -- --systemd

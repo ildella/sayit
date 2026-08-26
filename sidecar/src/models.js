@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { loadCatalog, getModel } from './catalog.js';
+import { piperDir, piperFiles } from './piper.js';
 
 const BUSY = new Set(['queued', 'downloading', 'verifying', 'canceling']);
 
@@ -9,6 +10,8 @@ export function createModelStore({
   catalog = loadCatalog(),
   getActiveId,
   setActiveId,
+  getVoice,
+  setVoice,
   installFiles,
   onChange: onChangeArg,
   unloadEngine,
@@ -37,6 +40,10 @@ export function createModelStore({
 
   function filesLookInstalled(model) {
     if (fs.existsSync(markerPath(model.id))) return true;
+    // Piper rows: two explicit files in models/piper/<id>/.
+    if (model.voicePath) {
+      return piperFiles(model, modelsDir).every((p) => fs.existsSync(p));
+    }
     const files = walkFiles(repoCacheDir(model.repository));
     const onnx = files.filter((f) => f.endsWith('.onnx'));
     if (onnx.length === 0) return false;
@@ -164,6 +171,12 @@ export function createModelStore({
     }
     const prev = getActiveId();
     setActiveId(id);
+    if (setVoice && model.defaultVoice) {
+      const current = getVoice?.();
+      const owner = catalog.find((m) => m.defaultVoice === current);
+      const family = owner?.family ?? 'kokoro';
+      if (family !== model.family) setVoice(model.defaultVoice);
+    }
     if (prev !== id) unloadEngine?.();
     emit();
     return snapshot();
@@ -178,6 +191,13 @@ export function createModelStore({
     }
     const marker = markerPath(id);
     if (fs.existsSync(marker)) fs.unlinkSync(marker);
+    if (model.voicePath) {
+      // Piper rows own a dedicated directory — no shared-cache refcounting.
+      fs.rmSync(piperDir(model, modelsDir), { recursive: true, force: true });
+      runtime.delete(id);
+      emit();
+      return snapshot();
+    }
     // Only delete the shared HF cache if no other installed SKU of this repo remains.
     const stillNeeded = catalog.some(
       (m) => m.id !== id && m.repository === model.repository && filesLookInstalled(m),
