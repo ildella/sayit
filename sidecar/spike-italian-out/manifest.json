@@ -1,0 +1,160 @@
+{
+  "generatedAt": "2026-08-27T05:40:18.263Z",
+  "sentences": [
+    {
+      "text": "Ciao, come stai?",
+      "ipa": "tʃˈao kˌome stˈaj",
+      "voices": {
+        "if_sara": {
+          "file": "/home/della/projects/contrib/sayit-linux/sidecar/spike-italian-out/s1-if_sara.wav",
+          "dur": 1.575,
+          "peak": 0.99,
+          "gain": 0.852,
+          "ok": true
+        },
+        "im_nicola": {
+          "file": "/home/della/projects/contrib/sayit-linux/sidecar/spike-italian-out/s1-im_nicola.wav",
+          "dur": 1.425,
+          "peak": 0.735,
+          "gain": 1,
+          "ok": true
+        },
+        "en(af_heart)": {
+          "file": "/home/della/projects/contrib/sayit-linux/sidecar/spike-italian-out/s1-af_heart.wav",
+          "dur": 1.7,
+          "peak": 0.428,
+          "gain": 1,
+          "ok": true
+        }
+      },
+      "piper": {
+        "skipped": true,
+        "reason": "piper binary not installed (only the Riccardo model is cached)"
+      }
+    },
+    {
+      "text": "Buongiorno a tutti, benvenuti.",
+      "ipa": "bʊondʒˈɔrno a tˈutːɪ benvenˈutɪ",
+      "voices": {
+        "if_sara": {
+          "file": "/home/della/projects/contrib/sayit-linux/sidecar/spike-italian-out/s2-if_sara.wav",
+          "dur": 2.325,
+          "peak": 0.99,
+          "gain": 0.891,
+          "ok": true
+        },
+        "im_nicola": {
+          "file": "/home/della/projects/contrib/sayit-linux/sidecar/spike-italian-out/s2-im_nicola.wav",
+          "dur": 2.525,
+          "peak": 0.6,
+          "gain": 1,
+          "ok": true
+        },
+        "en(af_heart)": {
+          "file": "/home/della/projects/contrib/sayit-linux/sidecar/spike-italian-out/s2-af_heart.wav",
+          "dur": 2.325,
+          "peak": 0.455,
+          "gain": 1,
+          "ok": true
+        }
+      },
+      "piper": {
+        "skipped": true,
+        "reason": "piper binary not installed (only the Riccardo model is cached)"
+      }
+    },
+    {
+      "text": "La pizza napoletana è buonissima.",
+      "ipa": "la pˈitsːa napoletˈana e bʊonˈissima",
+      "voices": {
+        "if_sara": {
+          "file": "/home/della/projects/contrib/sayit-linux/sidecar/spike-italian-out/s3-if_sara.wav",
+          "dur": 2.675,
+          "peak": 0.933,
+          "gain": 1,
+          "ok": true
+        },
+        "im_nicola": {
+          "file": "/home/della/projects/contrib/sayit-linux/sidecar/spike-italian-out/s3-im_nicola.wav",
+          "dur": 2.675,
+          "peak": 0.639,
+          "gain": 1,
+          "ok": true
+        },
+        "en(af_heart)": {
+          "file": "/home/della/projects/contrib/sayit-linux/sidecar/spike-italian-out/s3-af_heart.wav",
+          "dur": 2.825,
+          "peak": 0.452,
+          "gain": 1,
+          "ok": true
+        }
+      },
+      "piper": {
+        "skipped": true,
+        "reason": "piper binary not installed (only the Riccardo model is cached)"
+      }
+    },
+    {
+      "text": "Milano è una città molto elegante.",
+      "ipa": "milˈano e ˌʊna tʃitːˈa mˈolto eleɡˈante",
+      "voices": {
+        "if_sara": {
+          "file": "/home/della/projects/contrib/sayit-linux/sidecar/spike-italian-out/s4-if_sara.wav",
+          "dur": 2.625,
+          "peak": 0.927,
+          "gain": 1,
+          "ok": true
+        },
+        "im_nicola": {
+          "file": "/home/della/projects/contrib/sayit-linux/sidecar/spike-italian-out/s4-im_nicola.wav",
+          "dur": 2.7,
+          "peak": 0.543,
+          "gain": 1,
+          "ok": true
+        },
+        "en(af_heart)": {
+          "file": "/home/della/projects/contrib/sayit-linux/sidecar/spike-italian-out/s4-af_heart.wav",
+          "dur": 2.825,
+          "peak": 0.366,
+          "gain": 1,
+          "ok": true
+        }
+      },
+      "piper": {
+        "skipped": true,
+        "reason": "piper binary not installed (only the Riccardo model is cached)"
+      }
+    },
+    {
+      "text": "Non capisco quello che dici.",
+      "ipa": "non kapˈisko kwˈello ke dˈitʃɪ",
+      "voices": {
+        "if_sara": {
+          "file": "/home/della/projects/contrib/sayit-linux/sidecar/spike-italian-out/s5-if_sara.wav",
+          "dur": 2.35,
+          "peak": 0.99,
+          "gain": 0.9,
+          "ok": true
+        },
+        "im_nicola": {
+          "file": "/home/della/projects/contrib/sayit-linux/sidecar/spike-italian-out/s5-im_nicola.wav",
+          "dur": 2.35,
+          "peak": 0.729,
+          "gain": 1,
+          "ok": true
+        },
+        "en(af_heart)": {
+          "file": "/home/della/projects/contrib/sayit-linux/sidecar/spike-italian-out/s5-af_heart.wav",
+          "dur": 2.325,
+          "peak": 0.501,
+          "gain": 1,
+          "ok": true
+        }
+      },
+      "piper": {
+        "skipped": true,
+        "reason": "piper binary not installed (only the Riccardo model is cached)"
+      }
+    }
+  ]
+}
