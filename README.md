@@ -8,6 +8,10 @@ Private, local text-to-speech, cross-platform. Say It turns copied text into
 speech with open models running entirely on your machine — your text and
 generated audio never leave your computer.
 
+<p align="center">
+  <img src="docs/screenshots/desktop-speak.png" alt="Say It Linux desktop app — Speak tab" width="720">
+</p>
+
 This is a multi-platform port of [callebtc/sayit](https://github.com/callebtc/sayit)
 (macOS / Apple silicon), keeping its architecture and CLI surface while
 swapping every Apple-specific layer for portable equivalents:
@@ -36,6 +40,130 @@ The Tauri v2 shell is cross-platform by design; only the playback helper
 Porting notes for macOS/Windows contributors are welcome — see
 [LINUX.md](LINUX.md) for how the port is put together and why.
 
+## Quick start
+
+Requirements: Node ≥ 20, npm, and **mpv** for playback (falls back to `aplay`).
+Clipboard tools (`wl-paste` / `xclip` / `xsel`) only if you want the hotkey.
+
+### 1. Install
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/ildella/sayit/master/scripts/install.sh | bash -s -- --systemd
+```
+
+Or from a clone of this repo:
+
+```sh
+bash scripts/install.sh                 # sidecar + sayit CLI
+bash scripts/install.sh --systemd       # + start automatically at login
+```
+
+That puts the sidecar in `~/.local/share/sayit/sidecar` and the **CLI** at
+`~/.local/bin/sayit`, then starts the daemon. Ensure `~/.local/bin` is on
+your `PATH`. Download a catalog model before speaking; after that the app
+stays offline.
+
+After pulling updates, re-run `scripts/setup-sidecar.sh` (or `npm run setup`)
+and restart the service. The GUI and CLI talk to whatever is already on
+port 7878 — an old sidecar will look “stuck” or reject speak.
+
+### 2. Run the CLI
+
+```sh
+sayit models install kokoro-q8 --use   # once, ~90 MB
+sayit "Hello from Say It"              # speak
+sayit volume 0                         # silence; 1 = normal, 2 = boost
+sayit service status                   # is the daemon running?
+```
+
+`sayit` talks to the sidecar on `127.0.0.1:7878`. If the daemon is down:
+`sayit service start` (or `systemctl --user start sayit` if you used
+`--systemd`).
+
+### 3. Install the agent skill
+
+The [skill](skills/sayit/SKILL.md) is from [callebtc/sayit](https://github.com/callebtc/sayit);
+this port only installs it next to the Linux CLI. After `install.sh` (or
+`npm run setup`):
+
+```sh
+sayit skill install
+```
+
+That copies `SKILL.md` to `~/.agents/skills/sayit/` (OpenCode and other
+agents that read that directory). Then tell the agent:
+
+```text
+Load the Say It skill and use it for live spoken updates.
+```
+
+**Claude Code** (if you use it instead):
+
+```sh
+mkdir -p ~/.claude/skills/sayit
+cp "$(sayit skill path)" ~/.claude/skills/sayit/SKILL.md
+```
+
+Re-run `sayit skill install` after upgrading Say It. The sidecar must be
+running (`sayit service start`) and a model installed before speech works.
+
+### 4. Run the desktop app
+
+From a clone, after the sidecar is installed (`install.sh` or `npm run setup`):
+
+```sh
+npm install                 # once: @tauri-apps/cli
+npm --prefix app install    # once: SvelteKit UI
+npm run dev                 # sidecar + Tauri window
+```
+
+`npm run dev` (or `npm run tauri dev`) opens the tray/window. If the daemon
+is already up, Tauri connects to it instead of spawning a second one.
+
+```sh
+npm run tauri build         # .deb / AppImage (Linux shell only)
+```
+
+The `.deb` installs a **Say It** launcher and `/usr/bin/sayit` (the GUI).
+The setup script also puts the **CLI** at `~/.local/bin/sayit`. If your PATH
+lists `~/.local/bin` first, the GNOME icon or `sayit status` may run the CLI
+instead of the window. Launch the GUI with `/usr/bin/sayit`, the CLI with
+`~/.local/bin/sayit`.
+
+### 5. Which engine is running?
+
+There is one synthesis engine today: **Kokoro-82M** via kokoro-js /
+onnxruntime-node (CPU). What *does* vary is the **catalog model** (q8 vs q4)
+and whether it is loaded in memory.
+
+```sh
+sayit status
+```
+
+Example:
+
+```
+state:    idle
+engine:   loaded (kokoro-q8)
+sidecar:  0.x.x
+```
+
+- **engine** — `loaded` / `loading…` / `unloaded`, and the active model id
+  (`kokoro-q8` or `kokoro-q4`). Unloaded after idle timeout; the next speak
+  loads it again.
+- **sidecar** — installed sidecar version (and a protocol mismatch warning
+  if the CLI is newer than the daemon).
+
+List every catalog row and which one is **active**:
+
+```sh
+sayit models
+```
+
+In the GUI: **Settings → Models**. The row marked in use is the engine
+the next speak will load. There is no separate GPU / ROCm / CUDA switch in
+this port — onnxruntime-node runs on CPU.
+
 ## Architecture
 
 ```
@@ -53,66 +181,9 @@ Porting notes for macOS/Windows contributors are welcome — see
 - **app/** — SvelteKit 2 + Svelte 5 UI: speak box, transport, history, voices,
   Settings marketplace for models, onboarding when none are installed.
 - **cli/sayit.js** — `sayit "text"`, `printf … | sayit`, `sayit status`,
-  `pause`, `resume`, `stop`, `seek`, `speed`, `volume`, `voices`, `models`, `history`, `replay`.
+  `pause`, `resume`, `stop`, `seek`, `speed`, `volume`, `voices`, `models`, `history`, `replay`, `skill path`, `skill install`.
 - **src-tauri/** — tray icon, global hotkey (Ctrl+Alt+V speaks clipboard),
   spawns the sidecar, hands the API token to the webview.
-
-## Quick install (non-developer)
-
-Requirements: Node ≥ 20, npm, and **mpv** for playback (falls back to `aplay`).
-Clipboard tools (`wl-paste` / `xclip` / `xsel`) only if you want the hotkey.
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/ildella/sayit/master/scripts/install.sh | bash -s -- --systemd
-```
-
-Or from a clone of this repo:
-
-```sh
-bash scripts/install.sh                 # service + sayit CLI
-bash scripts/install.sh --systemd       # + start automatically at login
-```
-
-Installs the sidecar to `~/.local/share/sayit/sidecar` and the `sayit`
-command to `~/.local/bin/sayit`, then starts the daemon. Download a catalog
-model from the app (or `sayit models install kokoro-q8 --use`) before
-speaking; after that the app stays offline.
-
-```sh
-sayit models install kokoro-q8 --use   # once, ~90 MB
-sayit "Hello from Say It"              # speak
-sayit status                           # player + engine status
-sayit volume 0                         # silence; 1 = normal, 2 = boost
-sayit service status                   # is the daemon running?
-```
-
-After pulling updates, re-run `scripts/setup-sidecar.sh` (or `npm run setup`)
-and restart the service. The GUI and CLI talk to whatever is already on
-port 7878 — an old sidecar will look “stuck” or reject speak.
-
-## Desktop app (GUI)
-
-From a clone of this repo, with the sidecar already installed (`npm run setup` or `scripts/install.sh`):
-
-```sh
-npm install                 # once: @tauri-apps/cli
-npm --prefix app install    # once: SvelteKit UI
-npm run dev                 # sidecar + Tauri window
-```
-
-`npm run dev` starts the sidecar and the tray/window. If the daemon is already up (`sayit service start` or systemd), Tauri connects to it instead of spawning a second one.
-
-Equivalent: `npm run tauri dev` (same window; sidecar auto-spawn if port 7878 is free).
-
-```sh
-npm run tauri build         # .deb / AppImage (Linux shell only)
-```
-
-The `.deb` installs a **Say It** launcher and `/usr/bin/sayit` (the GUI).
-The setup script also puts the **CLI** at `~/.local/bin/sayit`. If your PATH
-lists `~/.local/bin` first, the GNOME icon or `sayit status` may run the CLI
-instead of the window. Launch the GUI with `/usr/bin/sayit`, the CLI with
-`~/.local/bin/sayit`.
 
 ## Models and first run
 
@@ -133,6 +204,15 @@ sayit models rm kokoro-q4
 ```
 
 Weights land in `~/.cache/sayit/models`. After that the app stays offline. Adding another ONNX family later is a catalog row, not a new Settings screen.
+
+## Playback speed
+
+- **Speak tab slider:** 0.5×–2.5× in 0.25 steps (the default-speed setting uses the same range).
+- **Player − / + buttons:** ±0.25 per press while playing, clamped to 0.5×–4.0×.
+- **CLI:** `sayit speed <0.5-4>` accepts any value in the range, not just the steps.
+- Pitch is preserved at every speed (mpv `scaletempo`); at 1× the audio plays
+  untouched, and history replays apply speed only at playback — the stored
+  audio file is always the original.
 
 ## Setup (development)
 
@@ -192,6 +272,7 @@ you can adapt `sayit-clipboard` to use `xclip -o` (PRIMARY) instead.
 | `~/.cache/sayit/models` | downloaded models |
 | `~/.cache/sayit/audio` | synthesized WAVs |
 | `~/.cache/sayit/sidecar.log` | sidecar stdout/stderr (when spawned by the GUI) |
+| `~/.cache/sayit/sidecar.pid` | pid of the running sidecar, used by health/recovery |
 
 ## Troubleshooting
 
@@ -204,8 +285,15 @@ sayit models install kokoro-q8 --use
 Speak never fetches weights by itself.
 
 **Empty Voice menu, red connection dot, or Speak stuck on Synthesizing** —
-the UI is talking to an outdated sidecar (or systemd restarted one after you
-killed the process). Stop the unit, refresh the install, start again:
+the UI is talking to an outdated sidecar. The GUI handles this on its own:
+it verifies sidecar health and protocol at launch and every 30 seconds, and
+retires + respawns a stale one (a process it cannot attribute to this install
+is never touched). One caveat: if the stale sidecar is the systemd unit itself,
+`Restart=on-failure` brings it back while the GUI waits for the port — stop
+the unit first (`systemctl --user stop sayit`), let the GUI win, then either
+keep the GUI-managed sidecar or refresh the install and start the unit again.
+Without the GUI — daemon-only setups — stop the unit, refresh the install,
+start again:
 
 ```sh
 systemctl --user stop sayit
@@ -224,7 +312,8 @@ Use `~/.local/bin/sayit status`.
 
 ## API (v1)
 
-`GET /v1/status` · `POST /v1/speak|pause|resume|stop|seek|speed|volume` ·
+`GET /v1/status` · `GET /v1/health` (liveness + sidecar version/protocol) ·
+`POST /v1/speak|pause|resume|stop|seek|speed|volume` ·
 `GET /v1/voices|models|history|settings` ·
 `POST /v1/models/:id/install|select` · `DELETE /v1/models/:id[/install]` ·
 `POST /v1/history/replay` ·

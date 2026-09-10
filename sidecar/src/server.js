@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import { synthesize, engineState, VOICES } from './engine.js';
 import { player } from './player.js';
 import { addHistory, listHistory, getHistory, deleteHistory } from './history.js';
-import { getToken, getSettings, saveSettings } from './config.js';
+import { getToken, getSettings, saveSettings, writeOwnPidfile, removeOwnPidfile, SIDECAR_VERSION, PROTOCOL_VERSION } from './config.js';
 import { modelStore } from './store.js';
 
 /**
@@ -110,6 +110,17 @@ export function createServer() {
 
     try {
       switch (route) {
+        // Liveness + version handshake. Clients (Tauri shell, CLI) use this to
+        // tell a healthy current sidecar from a stale or foreign process that
+        // merely holds the port. Must not depend on the engine being loadable.
+        case 'GET /v1/health':
+          return json(res, 200, {
+            ok: true,
+            version: SIDECAR_VERSION,
+            protocol: PROTOCOL_VERSION,
+            pid: process.pid,
+          });
+
         case 'GET /v1/status':
           return json(res, 200, {
             player: player.state,
@@ -239,7 +250,15 @@ export function createServer() {
     }
   });
 
+  // EADDRINUSE and friends: drop the pidfile if it is ours, never a healthy
+  // instance's. The pidfile itself is written only once the port is bound.
+  server.on('error', (err) => {
+    removeOwnPidfile();
+    console.error(`sayit sidecar: ${err.message}`);
+    process.exit(1);
+  });
   server.listen(settings.port, settings.host, () => {
+    writeOwnPidfile();
     console.log(`sayit sidecar listening on http://${settings.host}:${settings.port}`);
   });
   return server;

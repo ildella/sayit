@@ -12,6 +12,8 @@ const settings = (() => {
   catch { return {}; }
 })();
 const BASE = `http://${settings.host || '127.0.0.1'}:${settings.port || 7878}`;
+// Keep in sync with PROTOCOL_VERSION in sidecar/src/config.js.
+const EXPECTED_PROTOCOL = 1;
 
 async function api(method, pathName, body) {
   const res = await fetch(BASE + pathName, {
@@ -89,6 +91,65 @@ async function isServiceUp() {
   return true;
 }
 
+/** Raw /v1/health: { status, health } — never throws for HTTP error codes. */
+async function fetchHealth() {
+  const res = await fetch(`${BASE}/v1/health`, {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(3000),
+  });
+  return { status: res.status, health: res.ok ? await res.json() : null };
+}
+
+function isFetchTimeout(err) {
+  return err?.name === 'TimeoutError' || err?.name === 'AbortError';
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** Sidecar install dirs the CLI considers its own — same rule as the GUI. */
+function sidecarDirs() {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  return [
+    process.env.SAYIT_SIDECAR_DIR,
+    path.join(DATA_DIR, 'sayit', 'sidecar'),
+    path.resolve(here, '..', 'sidecar'),
+  ].filter(Boolean);
+}
+
+function pidAlive(pid) {
+  try { fs.statSync(`/proc/${pid}`); return true; } catch { return false; }
+}
+
+function pidMatchesSidecarDir(pid) {
+  try {
+    const cwd = fs.realpathSync(`/proc/${pid}/cwd`);
+    return sidecarDirs().some((dir) => fs.realpathSync(dir) === cwd);
+  } catch { return false; }
+}
+
+/** SIGTERM a stale sidecar. Attribution rule (mirrors src-tauri main.rs): a
+ *  token-verified health pid is trusted outright; pidfile and port-scan pids
+ *  are fallbacks, used only while alive and only when their cwd is one of our
+ *  sidecar dirs — never touch a process we cannot attribute. */
+async function retireStaleSidecar(healthPid) {
+  const port = settings.port || 7878;
+  const candidates = [];
+  if (healthPid) candidates.push({ pid: healthPid, trusted: true });
+  const listener = findListeningPid(port);
+  if (listener) candidates.push({ pid: listener });
+  try {
+    const pidfilePid = parseInt(fs.readFileSync(path.join(CACHE_DIR, 'sayit', 'sidecar.pid'), 'utf8').trim(), 10);
+    if (pidfilePid) candidates.push({ pid: pidfilePid });
+  } catch { /* no pidfile */ }
+  for (const { pid, trusted } of candidates) {
+    if (pid === process.pid || !pidAlive(pid)) continue;
+    if (!trusted && !pidMatchesSidecarDir(pid)) continue;
+    try { process.kill(pid, 'SIGTERM'); } catch { /* already gone */ }
+    for (let i = 0; i < 50 && findListeningPid(port); i++) await sleep(100);
+    return;
+  }
+}
+
 const USAGE = `sayit — local text-to-speech
 
 Usage:
@@ -107,6 +168,8 @@ Usage:
   sayit history            Show history
   sayit replay <id>        Replay a history entry
   sayit rm <id>            Delete a history entry
+  sayit skill path         Print the bundled agent skill path
+  sayit skill install      Copy the skill into ~/.agents/skills/sayit
   sayit service status     Is the sidecar daemon running?
   sayit service start      Start the sidecar daemon (detached)
   sayit service stop       Stop the sidecar daemon
@@ -132,9 +195,15 @@ try {
     case 'status': {
       const s = await api('GET', '/v1/status');
       const p = s.player;
+      let sidecarLine = 'unknown (outdated sidecar?)';
+      try {
+        const h = await api('GET', '/v1/health');
+        sidecarLine = h.protocol === EXPECTED_PROTOCOL ? h.version : `${h.version} (protocol mismatch)`;
+      } catch { /* pre-health sidecar */ }
       console.log(`state:    ${p.playing ? (p.paused ? 'paused' : 'speaking') : 'idle'}`);
       if (p.playing) console.log(`position: ${p.position.toFixed(1)}s / ${p.duration.toFixed(1)}s @ ${p.speed}x`);
       console.log(`engine:   ${s.engine.loaded ? 'loaded' : s.engine.loading ? 'loading…' : 'unloaded'} (${s.engine.model})`);
+      console.log(`sidecar:  ${sidecarLine}`);
       break;
     }
 
@@ -217,48 +286,124 @@ try {
       console.log('ok');
       break;
 
+    case 'skill': {
+      const here = path.dirname(fileURLToPath(import.meta.url));
+      const src = [
+        path.join(DATA_DIR, 'sayit', 'skills', 'sayit', 'SKILL.md'),
+        path.resolve(here, '..', 'skills', 'sayit', 'SKILL.md'),
+      ].find((p) => fs.existsSync(p));
+      if (!src) {
+        console.error('error: skill file not found. Re-run scripts/setup-sidecar.sh');
+        process.exitCode = 1;
+        break;
+      }
+      if (args[0] === 'path') {
+        console.log(src);
+      } else if (args[0] === 'install') {
+        const destDir = path.join(os.homedir(), '.agents', 'skills', 'sayit');
+        fs.mkdirSync(destDir, { recursive: true });
+        const dest = path.join(destDir, 'SKILL.md');
+        fs.copyFileSync(src, dest);
+        console.log(dest);
+      } else {
+        console.log('Usage: sayit skill path | install');
+        process.exitCode = 1;
+      }
+      break;
+    }
+
     case 'service': {
       const sub = args[0];
       const port = settings.port || 7878;
       if (sub === 'status') {
         try {
-          await isServiceUp();
-          const pid = findListeningPid(port);
-          console.log(`running${pid ? ` (pid ${pid})` : ''}`);
+          const { status, health } = await fetchHealth();
+          if (status === 404) {
+            console.log('running, but outdated (no /v1/health). Update it: npm run setup, then restart the service');
+            process.exitCode = 1;
+          } else if (status === 401) {
+            console.log(`something answers on port ${port} but rejects our token — stale or foreign service. Try: sayit service stop && sayit service start`);
+            process.exitCode = 1;
+          } else if (!health) {
+            console.log(`running, but unhealthy — /v1/health answered HTTP ${status}`);
+            process.exitCode = 1;
+          } else {
+            const pid = health.pid ?? findListeningPid(port);
+            let line = `running (sidecar ${health.version}${pid ? `, pid ${pid}` : ''})`;
+            if (health.protocol !== EXPECTED_PROTOCOL) {
+              line += ` — protocol ${health.protocol}, expected ${EXPECTED_PROTOCOL}. Update it: npm run setup, then restart the service`;
+              process.exitCode = 1;
+            }
+            console.log(line);
+          }
         } catch (err) {
           if (err.cause?.code === 'ECONNREFUSED') {
             console.log('stopped');
+            process.exitCode = 1;
+          } else if (isFetchTimeout(err)) {
+            console.log('running, but unhealthy — /v1/health timed out');
             process.exitCode = 1;
           } else {
             throw err;
           }
         }
       } else if (sub === 'start') {
+        let retire = false;
+        let retirePid = null;
         try {
-          await isServiceUp();
-          console.log('already running');
-        } catch (err) {
-          if (err.cause?.code !== 'ECONNREFUSED') throw err;
-          const dir = findSidecarDir();
-          if (!dir) {
-            console.error('sidecar not found. Install it with: npm run setup  (or set $SAYIT_SIDECAR_DIR)');
+          const { status, health } = await fetchHealth();
+          if (status === 200 && health?.protocol === EXPECTED_PROTOCOL) {
+            console.log('already running');
+            break;
+          }
+          if (status === 401) {
+            console.error(`port ${port} is held by a service that rejects our token — not touching it. Stop it manually, then re-run: sayit service start`);
             process.exitCode = 1;
             break;
           }
-          fs.mkdirSync(path.dirname(SIDECAR_LOG), { recursive: true });
-          const log = fs.openSync(SIDECAR_LOG, 'a');
-          const child = spawn(process.execPath, ['src/index.js'], {
-            cwd: dir,
-            detached: true,
-            stdio: ['ignore', log, log],
-            env: process.env,
-          });
-          child.unref();
-          let up = false;
-          for (let i = 0; i < 20 && !up; i++) {
-            await new Promise((r) => setTimeout(r, 150));
-            try { await isServiceUp(); up = true; } catch { /* not up yet */ }
+          // Token accepted (200 mismatch, 404, 5xx) or no body: ours, not healthy.
+          retire = true;
+          retirePid = health?.pid ?? null;
+        } catch (err) {
+          if (err.cause?.code === 'ECONNREFUSED') {
+            // nothing on the port — spawn below
+          } else if (isFetchTimeout(err)) {
+            retire = true;
+          } else {
+            throw err;
           }
+        }
+        if (retire) {
+          console.log('retiring stale sidecar…');
+          await retireStaleSidecar(retirePid);
+        }
+        const dir = findSidecarDir();
+        if (!dir) {
+          console.error('sidecar not found. Install it with: npm run setup  (or set $SAYIT_SIDECAR_DIR)');
+          process.exitCode = 1;
+          break;
+        }
+        fs.mkdirSync(path.dirname(SIDECAR_LOG), { recursive: true });
+        const log = fs.openSync(SIDECAR_LOG, 'a');
+        const child = spawn(process.execPath, ['src/index.js'], {
+          cwd: dir,
+          detached: true,
+          stdio: ['ignore', log, log],
+          env: process.env,
+        });
+        child.unref();
+        let up = false;
+        for (let i = 0; i < 20 && !up; i++) {
+          await sleep(150);
+          try { await isServiceUp(); up = true; } catch { /* not up yet */ }
+        }
+        // Honest reporting: what answers on the port must be the instance we
+        // spawned, not a systemd unit or leftover that won the race.
+        const listener = findListeningPid(port);
+        if (up && listener && listener !== child.pid) {
+          console.error(`warning: port ${port} is held by pid ${listener}, not the instance we started (${child.pid}) — a systemd unit or stale sidecar won the race. See README troubleshooting.`);
+          process.exitCode = 1;
+        } else {
           console.log(`started (pid ${child.pid})${up ? '' : ` — not responding yet; log: ${SIDECAR_LOG}`}`);
         }
       } else if (sub === 'stop') {
