@@ -68,8 +68,7 @@ and selected.
 ### Desktop app
 
 Download the `.deb` or `.rpm` from
-[Releases](https://github.com/ildella/sayit/releases) (needs Node ≥ 20 and
-mpv on the system):
+[Releases](https://github.com/ildella/sayit/releases):
 
 ```sh
 sudo apt install ./SayIt_*_amd64.deb

@@ -8,7 +8,7 @@
     "frontendDist": "../app/build",
     "devUrl": "http://localhost:1420",
     "beforeDevCommand": "npm --prefix app run dev",
-    "beforeBuildCommand": "npm --prefix app run build",
+    "beforeBuildCommand": "node -e \"require('fs').mkdirSync('src-tauri/sidecar-bundle',{recursive:true})\" && npm --prefix app run build",
     "beforeBundleCommand": "sh scripts/prepare-sidecar-bundle.sh"
   },
   "app": {
@@ -45,15 +45,6 @@
     ],
     "resources": {
       "sidecar-bundle/": "sidecar/"
-    },
-    "linux": {
-      "deb": {
-        "depends": ["nodejs", "mpv"],
-        "recommends": ["wl-clipboard", "xclip", "xsel"]
-      },
-      "rpm": {
-        "depends": ["nodejs", "mpv"]
-      }
     }
   }
 }

@@ -29,4 +29,21 @@ if [ ! -f "$DEST/src/index.js" ]; then
   exit 1
 fi
 
+# onnxruntime-node ships every OS/arch plus CUDA plugins. linuxdeploy walks
+# those ELF files, then dies on libcublasLt. Keep this host only.
+case "$(uname -m)" in
+  x86_64) ort_arch=x64 ;;
+  aarch64|arm64) ort_arch=arm64 ;;
+  *) ort_arch=x64 ;;
+esac
+ort="$DEST/node_modules/onnxruntime-node/bin/napi-v3"
+if [ -d "$ort" ]; then
+  find "$ort" -mindepth 1 -maxdepth 1 -type d ! -name linux -exec rm -rf {} +
+  if [ -d "$ort/linux" ]; then
+    find "$ort/linux" -mindepth 1 -maxdepth 1 -type d ! -name "$ort_arch" -exec rm -rf {} +
+  fi
+  rm -f "$ort/linux/$ort_arch"/libonnxruntime_providers_cuda.so \
+        "$ort/linux/$ort_arch"/libonnxruntime_providers_tensorrt.so
+fi
+
 echo "prepare-sidecar-bundle: $DEST"
