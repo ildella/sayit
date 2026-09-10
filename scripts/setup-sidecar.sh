@@ -34,9 +34,12 @@ printf '\n'
 cp "$SRC/cli/sayit.js" "$BIN/sayit"
 cp "$SRC/scripts/sayit-clipboard.sh" "$BIN/sayit-clipboard"
 chmod +x "$BIN/sayit" "$BIN/sayit-clipboard"
+mkdir -p "$DEST/skills/sayit"
+cp "$SRC/skills/sayit/SKILL.md" "$DEST/skills/sayit/SKILL.md"
 
 echo "${BOLD}✓  Sidecar${RESET}  $DEST/sidecar"
 echo "${BOLD}✓  CLI${RESET}      $BIN/sayit  (+ sayit-clipboard)"
+echo "${BOLD}✓  Skill${RESET}    $DEST/skills/sayit/SKILL.md"
 echo
 echo "◇  Optional — systemd user service"
 echo "     mkdir -p ~/.config/systemd/user"

@@ -80,7 +80,34 @@ sayit service status                   # is the daemon running?
 `sayit service start` (or `systemctl --user start sayit` if you used
 `--systemd`).
 
-### 3. Run the desktop app
+### 3. Install the agent skill
+
+The [skill](skills/sayit/SKILL.md) is from [callebtc/sayit](https://github.com/callebtc/sayit);
+this port only installs it next to the Linux CLI. After `install.sh` (or
+`npm run setup`):
+
+```sh
+sayit skill install
+```
+
+That copies `SKILL.md` to `~/.agents/skills/sayit/` (OpenCode and other
+agents that read that directory). Then tell the agent:
+
+```text
+Load the Say It skill and use it for live spoken updates.
+```
+
+**Claude Code** (if you use it instead):
+
+```sh
+mkdir -p ~/.claude/skills/sayit
+cp "$(sayit skill path)" ~/.claude/skills/sayit/SKILL.md
+```
+
+Re-run `sayit skill install` after upgrading Say It. The sidecar must be
+running (`sayit service start`) and a model installed before speech works.
+
+### 4. Run the desktop app
 
 From a clone, after the sidecar is installed (`install.sh` or `npm run setup`):
 
@@ -103,7 +130,7 @@ lists `~/.local/bin` first, the GNOME icon or `sayit status` may run the CLI
 instead of the window. Launch the GUI with `/usr/bin/sayit`, the CLI with
 `~/.local/bin/sayit`.
 
-### 4. Which engine is running?
+### 5. Which engine is running?
 
 There is one synthesis engine today: **Kokoro-82M** via kokoro-js /
 onnxruntime-node (CPU). What *does* vary is the **catalog model** (q8 vs q4)
@@ -154,7 +181,7 @@ this port — onnxruntime-node runs on CPU.
 - **app/** — SvelteKit 2 + Svelte 5 UI: speak box, transport, history, voices,
   Settings marketplace for models, onboarding when none are installed.
 - **cli/sayit.js** — `sayit "text"`, `printf … | sayit`, `sayit status`,
-  `pause`, `resume`, `stop`, `seek`, `speed`, `volume`, `voices`, `models`, `history`, `replay`.
+  `pause`, `resume`, `stop`, `seek`, `speed`, `volume`, `voices`, `models`, `history`, `replay`, `skill path`, `skill install`.
 - **src-tauri/** — tray icon, global hotkey (Ctrl+Alt+V speaks clipboard),
   spawns the sidecar, hands the API token to the webview.
 

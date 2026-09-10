@@ -168,6 +168,8 @@ Usage:
   sayit history            Show history
   sayit replay <id>        Replay a history entry
   sayit rm <id>            Delete a history entry
+  sayit skill path         Print the bundled agent skill path
+  sayit skill install      Copy the skill into ~/.agents/skills/sayit
   sayit service status     Is the sidecar daemon running?
   sayit service start      Start the sidecar daemon (detached)
   sayit service stop       Stop the sidecar daemon
@@ -283,6 +285,32 @@ try {
       await api('DELETE', `/v1/history/${args[0]}`);
       console.log('ok');
       break;
+
+    case 'skill': {
+      const here = path.dirname(fileURLToPath(import.meta.url));
+      const src = [
+        path.join(DATA_DIR, 'sayit', 'skills', 'sayit', 'SKILL.md'),
+        path.resolve(here, '..', 'skills', 'sayit', 'SKILL.md'),
+      ].find((p) => fs.existsSync(p));
+      if (!src) {
+        console.error('error: skill file not found. Re-run scripts/setup-sidecar.sh');
+        process.exitCode = 1;
+        break;
+      }
+      if (args[0] === 'path') {
+        console.log(src);
+      } else if (args[0] === 'install') {
+        const destDir = path.join(os.homedir(), '.agents', 'skills', 'sayit');
+        fs.mkdirSync(destDir, { recursive: true });
+        const dest = path.join(destDir, 'SKILL.md');
+        fs.copyFileSync(src, dest);
+        console.log(dest);
+      } else {
+        console.log('Usage: sayit skill path | install');
+        process.exitCode = 1;
+      }
+      break;
+    }
 
     case 'service': {
       const sub = args[0];
