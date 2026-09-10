@@ -1,5 +1,6 @@
 # Build Linux GUI packages with the Node sidecar inside.
-# PR CI stays --no-bundle; this job is tags (and manual dispatch) only.
+# PR CI stays unsigned; this job is tags (and manual dispatch) only.
+# AppImage is the auto-update channel (signed). deb/rpm stay distro packages.
 name: release-linux
 
 on:
@@ -14,9 +15,12 @@ concurrency:
   group: release-linux-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  APPIMAGE_EXTRACT_AND_RUN: "1"
+
 jobs:
   linux:
-    name: deb + rpm (ubuntu-24.04)
+    name: deb + rpm + appimage (ubuntu-24.04)
     runs-on: ubuntu-24.04
 
     steps:
@@ -47,8 +51,16 @@ jobs:
           npm ci
           npm --prefix app ci
 
-      - name: Bundle deb and rpm
-        run: npx tauri build -b deb,rpm
+      - name: Bundle deb, rpm, and signed AppImage
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          test -n "$TAURI_SIGNING_PRIVATE_KEY"
+          npx tauri build -b deb,rpm,appimage --config '{"bundle":{"createUpdaterArtifacts":true}}'
+
+      - name: Write latest.json
+        run: sh scripts/write-latest-json.sh "${{ github.ref_name }}" "${{ github.repository }}"
 
       - uses: actions/upload-artifact@v7
         with:
@@ -56,6 +68,9 @@ jobs:
           path: |
             src-tauri/target/release/bundle/deb/*.deb
             src-tauri/target/release/bundle/rpm/*.rpm
+            src-tauri/target/release/bundle/appimage/*.AppImage
+            src-tauri/target/release/bundle/appimage/*.AppImage.sig
+            latest.json
 
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
@@ -65,8 +80,14 @@ jobs:
           gh release create "${{ github.ref_name }}" \
             src-tauri/target/release/bundle/deb/*.deb \
             src-tauri/target/release/bundle/rpm/*.rpm \
+            src-tauri/target/release/bundle/appimage/*.AppImage \
+            src-tauri/target/release/bundle/appimage/*.AppImage.sig \
+            latest.json \
             --generate-notes --verify-tag \
           || gh release upload "${{ github.ref_name }}" \
                src-tauri/target/release/bundle/deb/*.deb \
                src-tauri/target/release/bundle/rpm/*.rpm \
+               src-tauri/target/release/bundle/appimage/*.AppImage \
+               src-tauri/target/release/bundle/appimage/*.AppImage.sig \
+               latest.json \
                --clobber

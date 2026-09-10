@@ -7,8 +7,18 @@
   let text = $state('');
   let voice = $state('af_heart');
   let speed = $state(1.0);
+  let appVersion = $state('');
+  let updatePhase = $state('idle');
+  let updateInfo = $state(null);
+  let downloadPct = $state(0);
 
-  onMount(() => { initStore(); });
+  onMount(() => {
+    initStore();
+    import('@tauri-apps/api/app')
+      .then(({ getVersion }) => getVersion())
+      .then((v) => { appVersion = v; })
+      .catch(() => {});
+  });
 
   // Fill the speak-page pickers once voices arrive. Do not assign only in
   // onMount: a second initStore() used to return before voices existed, so
@@ -113,6 +123,50 @@
   async function removeEntry(id) {
     await api.deleteEntry(id);
     appState.history = appState.history.filter((e) => e.id !== id);
+  }
+
+  async function checkForUpdates() {
+    updatePhase = 'checking';
+    updateInfo = null;
+    try {
+      const { check } = await import('@tauri-apps/plugin-updater');
+      const update = await check();
+      if (!update) {
+        updatePhase = 'none';
+        return;
+      }
+      updateInfo = update;
+      updatePhase = 'available';
+    } catch (err) {
+      updatePhase = 'error';
+      appState.error = err.message;
+    }
+  }
+
+  async function installUpdate() {
+    if (!updateInfo) return;
+    updatePhase = 'downloading';
+    downloadPct = 0;
+    try {
+      let downloaded = 0;
+      let total = 0;
+      await updateInfo.downloadAndInstall((event) => {
+        if (event.event === 'Started') total = event.data.contentLength ?? 0;
+        if (event.event === 'Progress') {
+          downloaded += event.data.chunkLength;
+          downloadPct = total ? Math.min(100, Math.round((downloaded / total) * 100)) : 0;
+        }
+        if (event.event === 'Finished') {
+          downloadPct = 100;
+          updatePhase = 'installing';
+        }
+      });
+      const { relaunch } = await import('@tauri-apps/plugin-process');
+      await relaunch();
+    } catch (err) {
+      updatePhase = 'error';
+      appState.error = err.message;
+    }
   }
 </script>
 
@@ -341,6 +395,28 @@
             onchange={(e) => api.saveSettings({ unloadAfterMinutes: Number(e.target.value) }).then((s) => (appState.settings = s))}
           />
         </label>
+
+        {#if appVersion}
+          <h3>Updates</h3>
+          <p class="dim">AppImage only. Version {appVersion}. Checks GitHub Releases when you ask — nothing is sent in the background.</p>
+          {#if updatePhase === 'idle' || updatePhase === 'error'}
+            <button onclick={checkForUpdates}>Check for updates</button>
+          {:else if updatePhase === 'checking'}
+            <p class="dim">Checking…</p>
+          {:else if updatePhase === 'none'}
+            <p class="dim">You are on the latest version.</p>
+            <button onclick={checkForUpdates}>Check again</button>
+          {:else if updatePhase === 'available'}
+            <p>Version {updateInfo.version} is available.</p>
+            {#if updateInfo.body}<p class="dim">{updateInfo.body}</p>{/if}
+            <button class="primary" onclick={installUpdate}>Download and install</button>
+          {:else if updatePhase === 'downloading'}
+            <p class="dim">Downloading… {downloadPct}%</p>
+            <div class="track"><div class="fill" style:width="{downloadPct}%"></div></div>
+          {:else if updatePhase === 'installing'}
+            <p class="dim">Installing… the app will restart.</p>
+          {/if}
+        {/if}
 
         <h3>Hotkeys & clipboard</h3>
         <p class="dim">

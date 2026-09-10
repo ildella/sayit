@@ -160,6 +160,12 @@ disk. Anything that needs the API should resolve the token the same way.
   is `sayit-desktop` so it never shadows the CLI `sayit`. Spawn order:
   `$SAYIT_SIDECAR_DIR` → bundled resources → `~/.local/share/sayit/sidecar`.
   If 7878 is already healthy, the GUI does not spawn a second engine.
+- Auto-update is **AppImage only** (`tauri-plugin-updater`). The tag
+  workflow signs the AppImage with the Say It key (CI secrets
+  `TAURI_SIGNING_PRIVATE_KEY` / `_PASSWORD` — not another project's
+  global env) and uploads `latest.json`. `createUpdaterArtifacts` is
+  enabled only on that job so PR AppImage CI stays unsigned. Settings
+  → Check for updates is user-initiated; it is not telemetry.
 
 ## 8. Known limitations (vs the original)
 
@@ -183,7 +189,7 @@ disk. Anything that needs the API should resolve the token the same way.
 - **engine.js is a boundary** — engine-agnostic interface out, kokoro-js in.
 - **Models come from the catalog** — do not hardcode Hugging Face ids in the UI.
 - **Offline after first model download**; no analytics, no telemetry, no
-  passive clipboard monitoring (the original's privacy posture is part of
-  the product).
+  passive clipboard monitoring. AppImage update checks hit GitHub only
+  when the user clicks Check for updates.
 - CLI command surface stays compatible with the original where the feature
   exists.

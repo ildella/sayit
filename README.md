@@ -71,8 +71,7 @@ The Linux GUI is an **AppImage**. It embeds the sidecar. Needs **Node ≥ 20**
 and **mpv** on the machine (same as the CLI). No sudo.
 
 Download it from
-[Releases](https://github.com/ildella/sayit/releases) (or the Linux CI
-artifact), then:
+[Releases](https://github.com/ildella/sayit/releases), then:
 
 ```sh
 chmod +x SayIt-*.AppImage
@@ -81,6 +80,9 @@ chmod +x SayIt-*.AppImage
 
 The window binary is `sayit-desktop`; it does not replace the CLI `sayit`.
 You can run both: whoever starts first owns port 7878; the other connects.
+
+Auto-update (Settings → Check for updates) only applies to the AppImage.
+`.deb` / `.rpm` stay distro packages.
 
 ### Terminal
 
