@@ -39,6 +39,10 @@ jobs:
           npm ci
           npm --prefix app ci
 
+      - name: Ensure sidecar-bundle exists
+        shell: bash
+        run: mkdir -p src-tauri/sidecar-bundle
+
       - name: Compile shell (no bundle)
         run: npm run build:ci
 
