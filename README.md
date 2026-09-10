@@ -152,7 +152,8 @@ If a daemon is already listening on port 7878, Tauri connects to it instead
 of spawning a second one.
 
 ```sh
-npm run build:linux        # .deb + .rpm with sidecar inside → sayit-desktop
+npm run build:linux        # .deb with sidecar inside → sayit-desktop
+npm run build:appimage     # AppImage (no sudo; good for a local smoke test)
 npm run build:ci           # compile the shell, skip installers (PR CI)
 ```
 

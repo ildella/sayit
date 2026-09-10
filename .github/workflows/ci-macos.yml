@@ -43,4 +43,4 @@ jobs:
         run: npm run build:ci
 
       - name: Check release binary
-        run: test -f src-tauri/target/release/sayit
+        run: test -f src-tauri/target/release/sayit-desktop

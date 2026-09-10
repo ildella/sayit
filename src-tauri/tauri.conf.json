@@ -30,7 +30,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["deb", "rpm"],
+    "targets": ["deb"],
     "category": "Utility",
     "homepage": "https://github.com/ildella/sayit",
     "licenseFile": "../LICENSE",
