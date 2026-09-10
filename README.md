@@ -8,6 +8,10 @@ Private, local text-to-speech, cross-platform. Say It turns copied text into
 speech with open models running entirely on your machine — your text and
 generated audio never leave your computer.
 
+<p align="center">
+  <img src="docs/screenshots/desktop-speak.png" alt="Say It Linux desktop app — Speak tab" width="720">
+</p>
+
 This is a multi-platform port of [callebtc/sayit](https://github.com/callebtc/sayit)
 (macOS / Apple silicon), keeping its architecture and CLI surface while
 swapping every Apple-specific layer for portable equivalents:
