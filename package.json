@@ -1,6 +1,6 @@
 {
   "name": "sayit-linux",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "description": "Private, local text-to-speech for Linux — a port of callebtc/sayit",
   "license": "MIT",
