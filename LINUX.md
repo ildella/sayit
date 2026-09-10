@@ -157,18 +157,21 @@ disk. Anything that needs the API should resolve the token the same way.
   bump root `package.json` and `src-tauri/Cargo.toml` together before a `v*` tag.
 - CSP in `tauri.conf.json5` must keep `connect-src http://127.0.0.1:7878` or
   the webview can't reach the sidecar.
-- GUI packages (`npm run build:linux`) run `scripts/prepare-sidecar-bundle.sh`
-  then embed that tree as `bundle.resources` → `sidecar/`. The window binary
-  is `sayit-desktop` so it never shadows the CLI `sayit`. Spawn order:
+- GUI packages run `node scripts/prepare-sidecar-bundle.js` then embed that
+  tree as `bundle.resources` → `sidecar/`. The script keeps only this-host
+  onnxruntime binaries (linux / darwin / win32). The window binary is
+  `sayit-desktop` so it never shadows the CLI `sayit`. Spawn order:
   `$SAYIT_SIDECAR_DIR` → bundled resources → `~/.local/share/sayit/sidecar`.
   If 7878 is already healthy, the GUI does not spawn a second engine.
-- Auto-update is **AppImage only** (`tauri-plugin-updater`). Push a `v*`
-  tag; `release-linux.yml` runs `tauri-action`, which signs the AppImage
-  (CI secrets `TAURI_SIGNING_PRIVATE_KEY` / `_PASSWORD` — not another
-  project's global env), creates the GitHub Release, and uploads
-  `latest.json`. `createUpdaterArtifacts` is only in that job's `--config`
-  so PR AppImage CI stays unsigned. Settings → Check for updates is
-  user-initiated; it is not telemetry.
+- Auto-update is **AppImage on Linux, MSI on Windows** (`tauri-plugin-updater`).
+  Push a `v*` tag; `release-linux.yml` and `release-windows.yml` run
+  `tauri-action`, which signs the bundles (CI secrets
+  `TAURI_SIGNING_PRIVATE_KEY` / `_PASSWORD` — not another project's global
+  env), creates/updates the GitHub Release, and merges `latest.json`.
+  `createUpdaterArtifacts` is only in those jobs' `--config` so PR CI stays
+  unsigned. Settings → Check for updates is user-initiated; it is not
+  telemetry. The Windows MSI is experimental: sidecar still needs Node on
+  PATH and mpv; playback/clipboard are Linux-oriented.
 
 ## 8. Known limitations (vs the original)
 
@@ -180,9 +183,9 @@ disk. Anything that needs the API should resolve the token the same way.
     its phonemizer WASM is English-only, so those ids fail at generate.
     The `VOICES` table in `engine.js` lists what actually works.
 5. Single in-flight job; no queue (§3).
-6. Linux only — nothing here is tested on macOS/Windows, though the sidecar
-   and CLI are platform-agnostic in principle (mpv/aplay are the
-   platform-specific bits).
+6. Linux is the tested product. Windows CI ships an experimental MSI; macOS
+   still compiles without bundling. Sidecar/CLI are platform-agnostic in
+   principle (mpv/aplay and clipboard tools are the Linux-specific bits).
 
 ## 9. Invariants — do not break these
 
@@ -193,6 +196,6 @@ disk. Anything that needs the API should resolve the token the same way.
 - **Models come from the catalog** — do not hardcode Hugging Face ids in the UI.
 - **Offline after first model download**; no analytics, no telemetry, no
   passive clipboard monitoring. AppImage update checks hit GitHub only
-  when the user clicks Check for updates.
+  when the user clicks Check for updates (AppImage / Windows MSI).
 - CLI command surface stays compatible with the original where the feature
   exists.

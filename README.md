@@ -16,8 +16,9 @@ replacing Apple-specific layers with Tauri, Svelte, and kokoro-js.
   <img src="docs/screenshots/desktop-speak.png" alt="Say It desktop app — Speak tab" width="720">
 </p>
 
-Linux (X11 and Wayland) is built and tested. macOS and Windows should compile;
-help wanted.
+Linux (X11 and Wayland) is built and tested. Windows CI builds an experimental
+MSI (needs Node and mpv on the machine; playback is not a full Windows port).
+macOS should compile; help wanted.
 
 ## Highlights
 
@@ -68,7 +69,9 @@ and selected.
 ### Desktop app
 
 The Linux GUI is an **AppImage**. It embeds the sidecar. Needs **Node ≥ 20**
-and **mpv** on the machine (same as the CLI). No sudo.
+and **mpv** on the machine (same as the CLI). No sudo. Tags also publish an
+experimental **Windows MSI** (same Node + mpv requirement; not a full Windows
+port).
 
 Download it from
 [Releases](https://github.com/ildella/sayit/releases), then:
@@ -81,8 +84,8 @@ chmod +x SayIt-*.AppImage
 The window binary is `sayit-desktop`; it does not replace the CLI `sayit`.
 You can run both: whoever starts first owns port 7878; the other connects.
 
-Auto-update (Settings → Check for updates) only applies to the AppImage.
-`.deb` / `.rpm` stay distro packages.
+Auto-update (Settings → Check for updates) applies to the AppImage and the
+experimental Windows MSI. `.deb` / `.rpm` stay distro packages.
 
 ### Terminal
 
@@ -158,7 +161,8 @@ of spawning a second one.
 ```sh
 npm run build:appimage     # AppImage with sidecar inside (Linux CI)
 npm run build:linux        # .deb (optional)
-npm run build:ci           # compile the shell, skip installers (macOS/Windows CI)
+npm run build:msi          # MSI with sidecar inside (Windows CI; Windows host)
+npm run build:ci           # compile the shell, skip installers (macOS CI)
 ```
 
 After pulling updates, re-run `npm run setup` and restart the service so a
