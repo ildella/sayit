@@ -153,19 +153,22 @@ disk. Anything that needs the API should resolve the token the same way.
   produces an ENOENT two directories away from the real problem.
 - The tray icon has a 1×1 transparent fallback (`Image::new_owned`) because
   `default_window_icon()` can be `None` in some bundling configurations.
-- CSP in `tauri.conf.json` must keep `connect-src http://127.0.0.1:7878` or
+- Config is `src-tauri/tauri.conf.json5`. App version is `version: '../package.json'`;
+  bump root `package.json` and `src-tauri/Cargo.toml` together before a `v*` tag.
+- CSP in `tauri.conf.json5` must keep `connect-src http://127.0.0.1:7878` or
   the webview can't reach the sidecar.
 - GUI packages (`npm run build:linux`) run `scripts/prepare-sidecar-bundle.sh`
   then embed that tree as `bundle.resources` → `sidecar/`. The window binary
   is `sayit-desktop` so it never shadows the CLI `sayit`. Spawn order:
   `$SAYIT_SIDECAR_DIR` → bundled resources → `~/.local/share/sayit/sidecar`.
   If 7878 is already healthy, the GUI does not spawn a second engine.
-- Auto-update is **AppImage only** (`tauri-plugin-updater`). The tag
-  workflow signs the AppImage with the Say It key (CI secrets
-  `TAURI_SIGNING_PRIVATE_KEY` / `_PASSWORD` — not another project's
-  global env) and uploads `latest.json`. `createUpdaterArtifacts` is
-  enabled only on that job so PR AppImage CI stays unsigned. Settings
-  → Check for updates is user-initiated; it is not telemetry.
+- Auto-update is **AppImage only** (`tauri-plugin-updater`). Push a `v*`
+  tag; `release-linux.yml` runs `tauri-action`, which signs the AppImage
+  (CI secrets `TAURI_SIGNING_PRIVATE_KEY` / `_PASSWORD` — not another
+  project's global env), creates the GitHub Release, and uploads
+  `latest.json`. `createUpdaterArtifacts` is only in that job's `--config`
+  so PR AppImage CI stays unsigned. Settings → Check for updates is
+  user-initiated; it is not telemetry.
 
 ## 8. Known limitations (vs the original)
 

@@ -7,7 +7,9 @@ Crucial reminders for future sessions. See LINUX.md for full architecture.
 - **Node ≥ 20**, Rust, **mpv** (playback), `wl-paste`/`xclip`/`xsel` (clipboard).
 - Root deps: `@tauri-apps/cli`. App and sidecar have their own `package.json`.
 - Dev: `npm run dev` starts sidecar + `tauri dev`. `beforeDevCommand` runs from project root with `--prefix app`.
-- CI: `npm run build:ci` (`tauri build --no-bundle`) on PRs (Ubuntu 24.04, Node 26). Local GUI package is `npm run build:linux` (`.deb` only). `npm run build:appimage` / `npm run build:rpm` for the other formats. Tag workflow ships deb+rpm+signed AppImage + `latest.json`. Do **not** set `createUpdaterArtifacts` in `tauri.conf.json` (breaks unsigned PR AppImage CI). Sign with the Say It key (`~/.tauri/sayit.key`), never the Nucube `TAURI_SIGNING_*` env. `beforeBundleCommand` stages `src-tauri/sidecar-bundle/`.
+- Config is `src-tauri/tauri.conf.json5` (`config-json5` on `tauri` + `tauri-build`). Version is `../package.json`; bump **root `package.json` and `src-tauri/Cargo.toml` together**, then tag `v*`.
+- CI Linux (`ci-linux.yml`): unsigned `deb,rpm,appimage` on PRs and `master`. macOS/Windows stay `npm run build:ci` (`tauri build --no-bundle`). Local: `build:linux` (deb), `build:appimage`, `build:rpm`.
+- Release: push a `v*` tag → `release-linux.yml` (`tauri-action`, signed AppImage + `latest.json`). Do **not** set `createUpdaterArtifacts` in the config (breaks unsigned PR CI). Sign with the Say It key (`~/.tauri/sayit.key`), never the Nucube `TAURI_SIGNING_*` env. `beforeBundleCommand` stages `src-tauri/sidecar-bundle/`.
 - GUI binary is `sayit-desktop`. CLI remains `sayit`.
 - Sidecar search order: `$SAYIT_SIDECAR_DIR` → bundled resources → `~/.local/share/sayit/sidecar`.
 
