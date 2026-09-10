@@ -1,13 +1,15 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "SayIt",
+  "mainBinaryName": "sayit-desktop",
   "version": "0.1.0",
   "identifier": "dev.sayit.linux",
   "build": {
     "frontendDist": "../app/build",
     "devUrl": "http://localhost:1420",
     "beforeDevCommand": "npm --prefix app run dev",
-    "beforeBuildCommand": "npm --prefix app run build"
+    "beforeBuildCommand": "npm --prefix app run build",
+    "beforeBundleCommand": "sh scripts/prepare-sidecar-bundle.sh"
   },
   "app": {
     "withGlobalTauri": true,
@@ -28,8 +30,10 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["deb", "appimage"],
+    "targets": ["deb", "rpm"],
     "category": "Utility",
+    "homepage": "https://github.com/ildella/sayit",
+    "licenseFile": "../LICENSE",
     "shortDescription": "Private, local text-to-speech",
     "longDescription": "Say It turns copied text into speech with open models running locally.",
     "icon": [
@@ -38,6 +42,18 @@
       "icons/256x256.png",
       "icons/icon.png",
       "icons/icon.ico"
-    ]
+    ],
+    "resources": {
+      "sidecar-bundle/": "sidecar/"
+    },
+    "linux": {
+      "deb": {
+        "depends": ["nodejs", "mpv"],
+        "recommends": ["wl-clipboard", "xclip", "xsel"]
+      },
+      "rpm": {
+        "depends": ["nodejs", "mpv"]
+      }
+    }
   }
 }

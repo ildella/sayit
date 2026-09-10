@@ -1,6 +1,5 @@
 # Compile the Tauri shell on macOS.
-# Intentionally --no-bundle: installers would be a mute window until the
-# Node sidecar is packaged. This job only proves the crate + UI build.
+# PRs stay --no-bundle. macOS installers are not shipped yet.
 name: ci-macos
 
 on:

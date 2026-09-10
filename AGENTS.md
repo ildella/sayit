@@ -7,8 +7,9 @@ Crucial reminders for future sessions. See LINUX.md for full architecture.
 - **Node ≥ 20**, Rust, **mpv** (playback), `wl-paste`/`xclip`/`xsel` (clipboard).
 - Root deps: `@tauri-apps/cli`. App and sidecar have their own `package.json`.
 - Dev: `npm run dev` starts sidecar + `tauri dev`. `beforeDevCommand` runs from project root with `--prefix app`.
-- CI: `npm run build:ci` (`tauri build --no-bundle`) on Ubuntu 22.04, macOS, Windows. Do not add bundling to that job until the sidecar is inside the package.
-- Sidecar search order: `$SAYIT_SIDECAR_DIR` → `~/.local/share/sayit/sidecar`.
+- CI: `npm run build:ci` (`tauri build --no-bundle`) on PRs. Linux `.deb`/`.rpm` (sidecar inside) come from `npm run build:linux` / the tag workflow. `beforeBundleCommand` stages `src-tauri/sidecar-bundle/`.
+- GUI binary is `sayit-desktop`. CLI remains `sayit`.
+- Sidecar search order: `$SAYIT_SIDECAR_DIR` → bundled resources → `~/.local/share/sayit/sidecar`.
 
 ## Gotchas
 

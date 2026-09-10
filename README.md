@@ -38,38 +38,47 @@ help wanted.
 
 ## Getting started
 
-Say It needs **Node ≥ 20**, npm, and **mpv** for playback (`aplay` is a
-limited fallback). Clipboard tools (`wl-paste`, `xclip`, or `xsel`) only if
-you want the hotkey.
+Two products, one engine. The CLI installer never needs a window. The GUI
+package includes its own copy of the sidecar and talks to whatever is already
+on port 7878.
 
-1. Install the sidecar and CLI, and start the service at login:
+### CLI (no window)
 
-   ```sh
-   git clone https://github.com/ildella/sayit.git
-   cd sayit
-   bash scripts/install.sh --systemd
-   ```
+Needs **Node ≥ 20**, npm, and **mpv** (`aplay` is a limited fallback).
+Clipboard tools (`wl-paste`, `xclip`, or `xsel`) only if you want the hotkey.
 
-   Omit `--systemd` to start the daemon once without enabling it. Put
-   `~/.local/bin` on your `PATH`.
+```sh
+curl -fsSL https://raw.githubusercontent.com/ildella/sayit/master/scripts/install.sh | bash -s -- --systemd
+```
 
-2. Download a model (once, then the app stays offline):
+Or from a clone: `bash scripts/install.sh --systemd`. Omit `--systemd` to
+start the daemon once without enabling it. Put `~/.local/bin` on your `PATH`.
 
-   ```sh
-   sayit models install kokoro-q8 --use
-   ```
+Then download a model (once, then the app stays offline) and speak:
 
-3. Speak:
+```sh
+sayit models install kokoro-q8 --use
+sayit "Hello from Say It"
+```
 
-   ```sh
-   sayit "Hello from Say It"
-   ```
-
-   Or copy text and invoke the hotkey / `sayit-clipboard`.
-
-Onboarding in the desktop app offers the same recommended model if none is
-installed. `POST /v1/speak` returns 409 until a catalog model is installed
+Or copy text and run `sayit-clipboard` (bind that in your desktop
+shortcuts). Speak returns an error until a catalog model is installed
 and selected.
+
+### Desktop app
+
+Download the `.deb` or `.rpm` from
+[Releases](https://github.com/ildella/sayit/releases) (needs Node ≥ 20 and
+mpv on the system):
+
+```sh
+sudo apt install ./SayIt_*_amd64.deb
+sayit-desktop
+```
+
+The menu launcher is **Say It**. The binary is `sayit-desktop` so it does not
+replace the CLI `sayit`. You can run both: whoever starts first owns the
+sidecar; the other connects.
 
 ### Terminal
 
@@ -126,39 +135,29 @@ API for another app's *selection* (not clipboard); on X11 you can point
 
 ## Build from source
 
-The steps above install the **CLI and sidecar**. The desktop app is a Tauri
-v2 + SvelteKit UI; you need Rust and [Tauri's prerequisites](https://v2.tauri.app/start/prerequisites/)
+Contributors: live UI. Packaging: `npm run build:linux` (embeds the sidecar).
+
+You need Rust and [Tauri's prerequisites](https://v2.tauri.app/start/prerequisites/)
 as well as Node ≥ 20 and mpv.
 
 ```sh
 git clone https://github.com/ildella/sayit.git && cd sayit
-npm run setup              # sidecar + CLI into ~/.local
+npm run setup              # sidecar + CLI into ~/.local (same as install.sh)
 npm install                # @tauri-apps/cli
 npm --prefix app install   # SvelteKit UI
-npm run dev                # sidecar + Tauri window
+npm run dev                # live UI (developer loop, not a distribution)
 ```
 
-`npm run dev` (or `npm run tauri dev`) opens the tray/window. If a daemon is
-already listening on port 7878, Tauri connects to it instead of spawning a
-second one.
+If a daemon is already listening on port 7878, Tauri connects to it instead
+of spawning a second one.
 
 ```sh
-npm run tauri build        # .deb / AppImage (Linux)
-npm run build:ci           # compile the shell, skip installers
+npm run build:linux        # .deb + .rpm with sidecar inside → sayit-desktop
+npm run build:ci           # compile the shell, skip installers (PR CI)
 ```
 
-The `.deb` installs a **Say It** launcher and `/usr/bin/sayit` (the GUI).
-The setup script puts the **CLI** at `~/.local/bin/sayit`. If `~/.local/bin`
-is first on `PATH`, a GNOME icon or `sayit status` may run the CLI instead of
-the window — launch the GUI with `/usr/bin/sayit`.
-
-After pulling updates, re-run `npm run setup` (or `scripts/setup-sidecar.sh`)
-and restart the service so the GUI and CLI are not talking to a stale
-sidecar.
-
-CI runs `build:ci` on Ubuntu 22.04, macOS, and Windows. That proves the crate
-and UI compile; the TTS sidecar is still installed separately, so those
-binaries are not a shippable app yet.
+After pulling updates, re-run `npm run setup` and restart the service so a
+CLI install is not talking to a stale sidecar.
 
 ## Architecture
 

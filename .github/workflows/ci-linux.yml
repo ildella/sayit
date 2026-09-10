@@ -1,6 +1,5 @@
 # Compile the Tauri shell on Linux.
-# Intentionally --no-bundle: installers would be a mute window until the
-# Node sidecar is packaged. This job only proves the crate + UI build.
+# PRs stay --no-bundle (fast). Linux installers are `.github/workflows/release-linux.yml`.
 name: ci-linux
 
 on:

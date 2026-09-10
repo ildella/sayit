@@ -5,16 +5,14 @@
 #   bash scripts/install.sh              # service + sayit CLI
 #   bash scripts/install.sh --systemd    # also start automatically at login
 #
-# The same script becomes a one-liner once the repo is published:
-#   curl -fsSL <REPO_URL>/raw/<branch>/scripts/install.sh | bash -s -- --systemd
-# In piped mode it downloads the project tarball from SAYIT_REPO_URL.
+# Piped one-liner (no clone):
+#   curl -fsSL https://raw.githubusercontent.com/ildella/sayit/master/scripts/install.sh | bash -s -- --systemd
+# Override with SAYIT_REPO_URL / SAYIT_REPO_BRANCH if needed.
 set -eu
 
 # --- Config -----------------------------------------------------------------
-# Piped installs fetch the project from here. Point this at the public repo
-# when publishing; local checkouts never need it.
-REPO_URL="${SAYIT_REPO_URL:-}"
-REPO_BRANCH="${SAYIT_REPO_BRANCH:-main}"
+REPO_URL="${SAYIT_REPO_URL:-https://github.com/ildella/sayit}"
+REPO_BRANCH="${SAYIT_REPO_BRANCH:-master}"
 
 SYSTEMD=no
 for arg in "$@"; do

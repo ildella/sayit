@@ -7,12 +7,16 @@
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use tauri::menu::{Menu, MenuItem};
+use tauri::path::BaseDirectory;
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Manager};
+
+/// Sidecar tree shipped inside the GUI package (`bundle.resources` → `sidecar/`).
+static BUNDLED_SIDECAR_DIR: OnceLock<PathBuf> = OnceLock::new();
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
 /// Must match `PROTOCOL_VERSION` in sidecar/src/config.js. A sidecar serving
@@ -83,18 +87,29 @@ fn speak_clipboard() {
     }
 }
 
+fn remember_bundled_sidecar(app: &tauri::App) {
+    let Ok(index) = app
+        .path()
+        .resolve("sidecar/src/index.js", BaseDirectory::Resource)
+    else {
+        return;
+    };
+    if !index.is_file() {
+        return;
+    }
+    if let Some(dir) = index.parent().and_then(|src| src.parent()) {
+        let _ = BUNDLED_SIDECAR_DIR.set(dir.to_path_buf());
+    }
+}
+
 /// Locate and spawn the sidecar. Search order:
 ///   1. $SAYIT_SIDECAR_DIR (dev)
-///   2. ~/.local/share/sayit/sidecar (installed by scripts/setup-sidecar.sh)
+///   2. bundled resources (GUI .deb / .rpm)
+///   3. ~/.local/share/sayit/sidecar (CLI install.sh)
 fn spawn_sidecar() -> Option<Child> {
-    let dir = std::env::var("SAYIT_SIDECAR_DIR")
-        .map(PathBuf::from)
-        .ok()
-        .filter(|p| p.join("src/index.js").exists())
-        .or_else(|| {
-            let p = data_dir().join("sidecar");
-            p.join("src/index.js").exists().then_some(p)
-        })?;
+    let dir = sidecar_dirs()
+        .into_iter()
+        .find(|p| p.join("src/index.js").is_file())?;
 
     let node = std::env::var("SAYIT_NODE").unwrap_or_else(|_| "node".to_string());
     let log_path = dirs::cache_dir()
@@ -164,6 +179,9 @@ fn sidecar_dirs() -> Vec<PathBuf> {
     let mut dirs = Vec::new();
     if let Ok(dir) = std::env::var("SAYIT_SIDECAR_DIR") {
         dirs.push(PathBuf::from(dir));
+    }
+    if let Some(dir) = BUNDLED_SIDECAR_DIR.get() {
+        dirs.push(dir.clone());
     }
     dirs.push(data_dir().join("sidecar"));
     dirs
@@ -356,16 +374,6 @@ fn main() {
     let sidecar = Arc::new(Mutex::new(None::<Child>));
     let shutdown = Arc::new(AtomicBool::new(false));
 
-    // Short startup wait: the watcher retries with a longer budget, so a slow
-    // or unattributable recovery must not delay the window here.
-    recover_sidecar(&sidecar, Duration::from_secs(5));
-
-    std::thread::spawn({
-        let sidecar = Arc::clone(&sidecar);
-        let shutdown = Arc::clone(&shutdown);
-        move || recovery_watcher(sidecar, shutdown)
-    });
-
     tauri::Builder::default()
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
@@ -377,33 +385,47 @@ fn main() {
                 })
                 .build(),
         )
-        .setup(|app| {
-            app.global_shortcut()
-                .register("Ctrl+Alt+V".parse::<tauri_plugin_global_shortcut::Shortcut>()?)?;
+        .setup({
+            let sidecar = Arc::clone(&sidecar);
+            let shutdown = Arc::clone(&shutdown);
+            move |app| {
+                remember_bundled_sidecar(app);
+                // Short wait: the watcher retries with a longer budget, so a slow
+                // or unattributable recovery must not delay the window here.
+                recover_sidecar(&sidecar, Duration::from_secs(5));
+                std::thread::spawn({
+                    let sidecar = Arc::clone(&sidecar);
+                    let shutdown = Arc::clone(&shutdown);
+                    move || recovery_watcher(sidecar, shutdown)
+                });
 
-            let show = MenuItem::with_id(app, "show", "Show Say It", true, None::<&str>)?;
-            let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show, &quit])?;
+                app.global_shortcut()
+                    .register("Ctrl+Alt+V".parse::<tauri_plugin_global_shortcut::Shortcut>()?)?;
 
-            TrayIconBuilder::new()
-                .menu(&menu)
-                .tooltip("Say It")
-                .icon(app.default_window_icon().cloned().unwrap_or_else(|| {
-                    tauri::image::Image::new_owned(vec![0u8; 4], 1, 1)
-                }))
-                .on_menu_event(|app: &AppHandle, event| match event.id.as_ref() {
-                    "show" => {
-                        if let Some(win) = app.get_webview_window("main") {
-                            let _ = win.show();
-                            let _ = win.set_focus();
+                let show = MenuItem::with_id(app, "show", "Show Say It", true, None::<&str>)?;
+                let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+                let menu = Menu::with_items(app, &[&show, &quit])?;
+
+                TrayIconBuilder::new()
+                    .menu(&menu)
+                    .tooltip("Say It")
+                    .icon(app.default_window_icon().cloned().unwrap_or_else(|| {
+                        tauri::image::Image::new_owned(vec![0u8; 4], 1, 1)
+                    }))
+                    .on_menu_event(|app: &AppHandle, event| match event.id.as_ref() {
+                        "show" => {
+                            if let Some(win) = app.get_webview_window("main") {
+                                let _ = win.show();
+                                let _ = win.set_focus();
+                            }
                         }
-                    }
-                    "quit" => app.exit(0),
-                    _ => {}
-                })
-                .build(app)?;
+                        "quit" => app.exit(0),
+                        _ => {}
+                    })
+                    .build(app)?;
 
-            Ok(())
+                Ok(())
+            }
         })
         .invoke_handler(tauri::generate_handler![get_token])
         .build(tauri::generate_context!())
