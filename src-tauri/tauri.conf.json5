@@ -10,7 +10,7 @@
     devUrl: "http://localhost:1420",
     beforeDevCommand: "npm --prefix app run dev",
     beforeBuildCommand: "node -e \"require('fs').mkdirSync('src-tauri/sidecar-bundle',{recursive:true})\" && npm --prefix app run build",
-    beforeBundleCommand: "sh scripts/prepare-sidecar-bundle.sh",
+    beforeBundleCommand: "node scripts/prepare-sidecar-bundle.js",
   },
   app: {
     withGlobalTauri: true,
