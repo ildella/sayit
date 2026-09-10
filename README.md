@@ -67,17 +67,20 @@ and selected.
 
 ### Desktop app
 
-Download the `.deb` or `.rpm` from
-[Releases](https://github.com/ildella/sayit/releases):
+The Linux GUI is an **AppImage**. It embeds the sidecar. Needs **Node ≥ 20**
+and **mpv** on the machine (same as the CLI). No sudo.
+
+Download it from
+[Releases](https://github.com/ildella/sayit/releases) (or the Linux CI
+artifact), then:
 
 ```sh
-sudo apt install ./SayIt_*_amd64.deb
-sayit-desktop
+chmod +x SayIt-*.AppImage
+./SayIt-*.AppImage
 ```
 
-The menu launcher is **Say It**. The binary is `sayit-desktop` so it does not
-replace the CLI `sayit`. You can run both: whoever starts first owns the
-sidecar; the other connects.
+The window binary is `sayit-desktop`; it does not replace the CLI `sayit`.
+You can run both: whoever starts first owns port 7878; the other connects.
 
 ### Terminal
 
@@ -134,7 +137,7 @@ API for another app's *selection* (not clipboard); on X11 you can point
 
 ## Build from source
 
-Contributors: live UI. Packaging: `npm run build:linux` (embeds the sidecar).
+Contributors: live UI. The end-user GUI package is the AppImage.
 
 You need Rust and [Tauri's prerequisites](https://v2.tauri.app/start/prerequisites/)
 as well as Node ≥ 20 and mpv.
@@ -151,9 +154,9 @@ If a daemon is already listening on port 7878, Tauri connects to it instead
 of spawning a second one.
 
 ```sh
-npm run build:linux        # .deb with sidecar inside → sayit-desktop
-npm run build:appimage     # AppImage (no sudo; good for a local smoke test)
-npm run build:ci           # compile the shell, skip installers (PR CI)
+npm run build:appimage     # AppImage with sidecar inside (Linux CI)
+npm run build:linux        # .deb (optional)
+npm run build:ci           # compile the shell, skip installers (macOS/Windows CI)
 ```
 
 After pulling updates, re-run `npm run setup` and restart the service so a
