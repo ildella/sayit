@@ -134,6 +134,15 @@ sayit models rm kokoro-q4
 
 Weights land in `~/.cache/sayit/models`. After that the app stays offline. Adding another ONNX family later is a catalog row, not a new Settings screen.
 
+## Playback speed
+
+- **Speak tab slider:** 0.5×–2.5× in 0.25 steps (the default-speed setting uses the same range).
+- **Player − / + buttons:** ±0.25 per press while playing, clamped to 0.5×–4.0×.
+- **CLI:** `sayit speed <0.5-4>` accepts any value in the range, not just the steps.
+- Pitch is preserved at every speed (mpv `scaletempo`); at 1× the audio plays
+  untouched, and history replays apply speed only at playback — the stored
+  audio file is always the original.
+
 ## Setup (development)
 
 Requirements: Node ≥ 20, npm, **mpv** (recommended; falls back to `aplay`),
@@ -192,6 +201,7 @@ you can adapt `sayit-clipboard` to use `xclip -o` (PRIMARY) instead.
 | `~/.cache/sayit/models` | downloaded models |
 | `~/.cache/sayit/audio` | synthesized WAVs |
 | `~/.cache/sayit/sidecar.log` | sidecar stdout/stderr (when spawned by the GUI) |
+| `~/.cache/sayit/sidecar.pid` | pid of the running sidecar, used by health/recovery |
 
 ## Troubleshooting
 
@@ -204,8 +214,15 @@ sayit models install kokoro-q8 --use
 Speak never fetches weights by itself.
 
 **Empty Voice menu, red connection dot, or Speak stuck on Synthesizing** —
-the UI is talking to an outdated sidecar (or systemd restarted one after you
-killed the process). Stop the unit, refresh the install, start again:
+the UI is talking to an outdated sidecar. The GUI handles this on its own:
+it verifies sidecar health and protocol at launch and every 30 seconds, and
+retires + respawns a stale one (a process it cannot attribute to this install
+is never touched). One caveat: if the stale sidecar is the systemd unit itself,
+`Restart=on-failure` brings it back while the GUI waits for the port — stop
+the unit first (`systemctl --user stop sayit`), let the GUI win, then either
+keep the GUI-managed sidecar or refresh the install and start the unit again.
+Without the GUI — daemon-only setups — stop the unit, refresh the install,
+start again:
 
 ```sh
 systemctl --user stop sayit
@@ -224,7 +241,8 @@ Use `~/.local/bin/sayit status`.
 
 ## API (v1)
 
-`GET /v1/status` · `POST /v1/speak|pause|resume|stop|seek|speed|volume` ·
+`GET /v1/status` · `GET /v1/health` (liveness + sidecar version/protocol) ·
+`POST /v1/speak|pause|resume|stop|seek|speed|volume` ·
 `GET /v1/voices|models|history|settings` ·
 `POST /v1/models/:id/install|select` · `DELETE /v1/models/:id[/install]` ·
 `POST /v1/history/replay` ·

@@ -6,11 +6,20 @@
 
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
+
+/// Must match `PROTOCOL_VERSION` in sidecar/src/config.js. A sidecar serving
+/// a different value is stale (or foreign) and gets retired and respawned.
+const PROTOCOL_VERSION: u32 = 1;
+const SIDECAR_PORT: u16 = 7878;
+const BASE_URL: &str = "http://127.0.0.1:7878";
 
 fn config_dir() -> PathBuf {
     dirs::config_dir()
@@ -57,7 +66,7 @@ fn read_clipboard() -> Option<String> {
 async fn speak_text(text: String) -> Result<(), String> {
     let client = reqwest::Client::new();
     client
-        .post("http://127.0.0.1:7878/v1/speak")
+        .post(format!("{BASE_URL}/v1/speak"))
         .bearer_auth(read_token())
         .json(&serde_json::json!({ "text": text }))
         .send()
@@ -118,14 +127,244 @@ fn spawn_sidecar() -> Option<Child> {
         .ok()
 }
 
-fn main() {
-    let mut sidecar: Option<Child> = None;
+#[derive(serde::Deserialize)]
+struct SidecarHealth {
+    #[serde(default)]
+    version: String,
+    protocol: u32,
+    #[serde(default)]
+    pid: Option<u32>,
+}
 
-    // Only spawn if no service is already answering.
-    let already_running = ureq_get_status();
-    if !already_running {
-        sidecar = spawn_sidecar();
+/// GET /v1/health. Ok only on 200 with a parseable body; anything else
+/// (nothing on the port, a hung server, wrong token, or a pre-health
+/// sidecar answering 404) reads as "no healthy current sidecar".
+fn sidecar_health() -> Option<SidecarHealth> {
+    let client = reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(2))
+        .build()
+        .ok()?;
+    let res = client
+        .get(format!("{BASE_URL}/v1/health"))
+        .bearer_auth(read_token())
+        .send()
+        .ok()?;
+    if !res.status().is_success() {
+        return None;
     }
+    res.json().ok()
+}
+
+fn port_has_listener() -> bool {
+    std::net::TcpStream::connect(("127.0.0.1", SIDECAR_PORT)).is_ok()
+}
+
+/// Install dirs the app considers its own, in spawn priority order.
+fn sidecar_dirs() -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+    if let Ok(dir) = std::env::var("SAYIT_SIDECAR_DIR") {
+        dirs.push(PathBuf::from(dir));
+    }
+    dirs.push(data_dir().join("sidecar"));
+    dirs
+}
+
+#[cfg(target_os = "linux")]
+fn pid_is_our_sidecar(pid: u32) -> bool {
+    if pid == std::process::id() {
+        return false;
+    }
+    let Ok(cwd) = std::fs::canonicalize(format!("/proc/{pid}/cwd")) else {
+        return false;
+    };
+    sidecar_dirs()
+        .iter()
+        .filter_map(|dir| dir.canonicalize().ok())
+        .any(|dir| cwd == dir)
+}
+
+#[cfg(target_os = "linux")]
+fn pid_alive(pid: u32) -> bool {
+    std::path::Path::new(&format!("/proc/{pid}")).exists()
+}
+
+#[cfg(target_os = "linux")]
+fn read_pidfile() -> Option<u32> {
+    std::fs::read_to_string(dirs::cache_dir()?.join("sayit").join("sidecar.pid"))
+        .ok()?
+        .trim()
+        .parse()
+        .ok()
+}
+
+/// Pure-/proc port scan, same approach as cli/sayit.js findListeningPid().
+#[cfg(target_os = "linux")]
+fn find_listening_pid(port: u16) -> Option<u32> {
+    let want = format!("{port:04X}");
+    let mut inodes = Vec::new();
+    for table in ["/proc/net/tcp", "/proc/net/tcp6"] {
+        let Ok(text) = std::fs::read_to_string(table) else { continue };
+        for line in text.lines().skip(1) {
+            let cols: Vec<&str> = line.split_whitespace().collect();
+            if cols.len() < 10 {
+                continue;
+            }
+            if cols[1].split(':').next_back() == Some(want.as_str()) && cols[3] == "0A" {
+                inodes.push(cols[9].to_string());
+            }
+        }
+    }
+    for entry in std::fs::read_dir("/proc").ok()?.flatten() {
+        let Some(name) = entry.file_name().to_str().map(String::from) else {
+            continue;
+        };
+        if !name.bytes().all(|b| b.is_ascii_digit()) {
+            continue;
+        }
+        let Ok(fds) = std::fs::read_dir(entry.path().join("fd")) else {
+            continue;
+        };
+        for fd in fds.flatten() {
+            let Ok(target) = std::fs::read_link(fd.path()) else {
+                continue;
+            };
+            if inodes
+                .iter()
+                .any(|inode| target == PathBuf::from(format!("socket:[{inode}]")))
+            {
+                return name.parse().ok();
+            }
+        }
+    }
+    None
+}
+
+/// Terminate a stale sidecar. Attribution rule (mirrored by cli/sayit.js): a
+/// pid from a token-verified /v1/health answer is trusted outright; pidfile
+/// and port-scan pids are fallbacks, used only while still alive and only
+/// after confirming their cwd is one of our sidecar dirs — never touch a
+/// process we cannot attribute (upstream PR #21's rule).
+#[cfg(target_os = "linux")]
+fn retire_stale_sidecar(health_pid: Option<u32>) {
+    if let Some(pid) = health_pid {
+        if pid != std::process::id() && pid_alive(pid) {
+            retire_pid(pid);
+            return;
+        }
+    }
+    // Fallbacks, strongest first: the actual port listener, then the pidfile.
+    for pid in find_listening_pid(SIDECAR_PORT).into_iter().chain(read_pidfile()) {
+        if pid != std::process::id() && pid_alive(pid) && pid_is_our_sidecar(pid) {
+            retire_pid(pid);
+            return;
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn retire_pid(pid: u32) {
+    eprintln!("sayit: retiring stale sidecar pid {pid}");
+    unsafe { libc::kill(pid as i32, libc::SIGTERM) };
+    for _ in 0..50 {
+        if !port_has_listener() {
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    // A systemd unit with Restart=on-failure keeps the port cycling here;
+    // the README troubleshooting says to stop the unit in that case.
+    eprintln!("sayit: port {SIDECAR_PORT} still busy 5s after SIGTERM");
+}
+
+#[cfg(not(target_os = "linux"))]
+fn retire_stale_sidecar(_health_pid: Option<u32>) {}
+
+fn wait_until_healthy(timeout: Duration) -> bool {
+    let deadline = Instant::now() + timeout;
+    while Instant::now() < deadline {
+        if let Some(h) = sidecar_health() {
+            if h.protocol == PROTOCOL_VERSION {
+                return true;
+            }
+        }
+        std::thread::sleep(Duration::from_millis(300));
+    }
+    false
+}
+
+/// Archive a freshly spawned sidecar, reaping any child handle we still held
+/// so recovery after a hang cannot leave a zombie around until exit.
+fn store_sidecar(sidecar: &Arc<Mutex<Option<Child>>>, child: Child) {
+    if let Some(mut old) = sidecar.lock().unwrap().take() {
+        let _ = old.kill();
+        let _ = old.wait();
+    }
+    *sidecar.lock().unwrap() = Some(child);
+}
+
+/// Ensure a healthy current-protocol sidecar answers on the port: retire a
+/// stale one, then spawn and poll. Runs once at startup (short wait so the
+/// window is never blocked long) and from the watcher (longer wait).
+fn recover_sidecar(sidecar: &Arc<Mutex<Option<Child>>>, wait: Duration) -> bool {
+    let health = sidecar_health();
+    match &health {
+        Some(h) if h.protocol == PROTOCOL_VERSION => return true,
+        Some(_) => eprintln!(
+            "sayit: port {SIDECAR_PORT} serves an outdated protocol (sidecar {})",
+            health.as_ref().map(|h| h.version.as_str()).unwrap_or("?")
+        ),
+        None if port_has_listener() => {
+            eprintln!("sayit: port {SIDECAR_PORT} answers but /v1/health fails")
+        }
+        None => {}
+    }
+    retire_stale_sidecar(health.and_then(|h| h.pid));
+    if !port_has_listener() {
+        if let Some(child) = spawn_sidecar() {
+            store_sidecar(sidecar, child);
+        }
+    }
+    wait_until_healthy(wait)
+}
+
+/// Watch sidecar health; on failure recover, at most twice per disconnected
+/// period (upstream PR #21's bound). Any healthy check resets the counter.
+fn recovery_watcher(sidecar: Arc<Mutex<Option<Child>>>, shutdown: Arc<AtomicBool>) {
+    let mut failures = 0u32;
+    while !shutdown.load(Ordering::SeqCst) {
+        std::thread::sleep(Duration::from_secs(30));
+        if shutdown.load(Ordering::SeqCst) {
+            return;
+        }
+        match sidecar_health() {
+            Some(h) if h.protocol == PROTOCOL_VERSION => failures = 0,
+            _ => {
+                if failures >= 2 {
+                    continue; // gave up for this period; manual fixes reset us via health
+                }
+                failures += 1;
+                eprintln!("sayit: sidecar unhealthy, recovery attempt {failures}/2");
+                if recover_sidecar(&sidecar, Duration::from_secs(15)) {
+                    failures = 0;
+                }
+            }
+        }
+    }
+}
+
+fn main() {
+    let sidecar = Arc::new(Mutex::new(None::<Child>));
+    let shutdown = Arc::new(AtomicBool::new(false));
+
+    // Short startup wait: the watcher retries with a longer budget, so a slow
+    // or unattributable recovery must not delay the window here.
+    recover_sidecar(&sidecar, Duration::from_secs(5));
+
+    std::thread::spawn({
+        let sidecar = Arc::clone(&sidecar);
+        let shutdown = Arc::clone(&shutdown);
+        move || recovery_watcher(sidecar, shutdown)
+    });
 
     tauri::Builder::default()
         .plugin(
@@ -169,16 +408,17 @@ fn main() {
         .invoke_handler(tauri::generate_handler![get_token])
         .build(tauri::generate_context!())
         .expect("error while building Say It")
-        .run(move |_app, event| {
-            if let tauri::RunEvent::Exit = event {
-                if let Some(mut child) = sidecar.take() {
-                    let _ = child.kill();
+        .run({
+            let sidecar = Arc::clone(&sidecar);
+            let shutdown = Arc::clone(&shutdown);
+            move |_app, event| {
+                if let tauri::RunEvent::Exit = event {
+                    shutdown.store(true, Ordering::SeqCst);
+                    if let Some(mut child) = sidecar.lock().unwrap().take() {
+                        let _ = child.kill();
+                        let _ = child.wait();
+                    }
                 }
             }
         });
-}
-
-fn ureq_get_status() -> bool {
-    // Cheap health check: is something already listening on 7878?
-    std::net::TcpStream::connect("127.0.0.1:7878").is_ok()
 }
