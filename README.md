@@ -36,6 +36,103 @@ The Tauri v2 shell is cross-platform by design; only the playback helper
 Porting notes for macOS/Windows contributors are welcome — see
 [LINUX.md](LINUX.md) for how the port is put together and why.
 
+## Quick start
+
+Requirements: Node ≥ 20, npm, and **mpv** for playback (falls back to `aplay`).
+Clipboard tools (`wl-paste` / `xclip` / `xsel`) only if you want the hotkey.
+
+### 1. Install
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/ildella/sayit/master/scripts/install.sh | bash -s -- --systemd
+```
+
+Or from a clone of this repo:
+
+```sh
+bash scripts/install.sh                 # sidecar + sayit CLI
+bash scripts/install.sh --systemd       # + start automatically at login
+```
+
+That puts the sidecar in `~/.local/share/sayit/sidecar` and the **CLI** at
+`~/.local/bin/sayit`, then starts the daemon. Ensure `~/.local/bin` is on
+your `PATH`. Download a catalog model before speaking; after that the app
+stays offline.
+
+After pulling updates, re-run `scripts/setup-sidecar.sh` (or `npm run setup`)
+and restart the service. The GUI and CLI talk to whatever is already on
+port 7878 — an old sidecar will look “stuck” or reject speak.
+
+### 2. Run the CLI
+
+```sh
+sayit models install kokoro-q8 --use   # once, ~90 MB
+sayit "Hello from Say It"              # speak
+sayit volume 0                         # silence; 1 = normal, 2 = boost
+sayit service status                   # is the daemon running?
+```
+
+`sayit` talks to the sidecar on `127.0.0.1:7878`. If the daemon is down:
+`sayit service start` (or `systemctl --user start sayit` if you used
+`--systemd`).
+
+### 3. Run the desktop app
+
+From a clone, after the sidecar is installed (`install.sh` or `npm run setup`):
+
+```sh
+npm install                 # once: @tauri-apps/cli
+npm --prefix app install    # once: SvelteKit UI
+npm run dev                 # sidecar + Tauri window
+```
+
+`npm run dev` (or `npm run tauri dev`) opens the tray/window. If the daemon
+is already up, Tauri connects to it instead of spawning a second one.
+
+```sh
+npm run tauri build         # .deb / AppImage (Linux shell only)
+```
+
+The `.deb` installs a **Say It** launcher and `/usr/bin/sayit` (the GUI).
+The setup script also puts the **CLI** at `~/.local/bin/sayit`. If your PATH
+lists `~/.local/bin` first, the GNOME icon or `sayit status` may run the CLI
+instead of the window. Launch the GUI with `/usr/bin/sayit`, the CLI with
+`~/.local/bin/sayit`.
+
+### 4. Which engine is running?
+
+There is one synthesis engine today: **Kokoro-82M** via kokoro-js /
+onnxruntime-node (CPU). What *does* vary is the **catalog model** (q8 vs q4)
+and whether it is loaded in memory.
+
+```sh
+sayit status
+```
+
+Example:
+
+```
+state:    idle
+engine:   loaded (kokoro-q8)
+sidecar:  0.x.x
+```
+
+- **engine** — `loaded` / `loading…` / `unloaded`, and the active model id
+  (`kokoro-q8` or `kokoro-q4`). Unloaded after idle timeout; the next speak
+  loads it again.
+- **sidecar** — installed sidecar version (and a protocol mismatch warning
+  if the CLI is newer than the daemon).
+
+List every catalog row and which one is **active**:
+
+```sh
+sayit models
+```
+
+In the GUI: **Settings → Models**. The row marked in use is the engine
+the next speak will load. There is no separate GPU / ROCm / CUDA switch in
+this port — onnxruntime-node runs on CPU.
+
 ## Architecture
 
 ```
@@ -56,63 +153,6 @@ Porting notes for macOS/Windows contributors are welcome — see
   `pause`, `resume`, `stop`, `seek`, `speed`, `volume`, `voices`, `models`, `history`, `replay`.
 - **src-tauri/** — tray icon, global hotkey (Ctrl+Alt+V speaks clipboard),
   spawns the sidecar, hands the API token to the webview.
-
-## Quick install (non-developer)
-
-Requirements: Node ≥ 20, npm, and **mpv** for playback (falls back to `aplay`).
-Clipboard tools (`wl-paste` / `xclip` / `xsel`) only if you want the hotkey.
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/ildella/sayit/master/scripts/install.sh | bash -s -- --systemd
-```
-
-Or from a clone of this repo:
-
-```sh
-bash scripts/install.sh                 # service + sayit CLI
-bash scripts/install.sh --systemd       # + start automatically at login
-```
-
-Installs the sidecar to `~/.local/share/sayit/sidecar` and the `sayit`
-command to `~/.local/bin/sayit`, then starts the daemon. Download a catalog
-model from the app (or `sayit models install kokoro-q8 --use`) before
-speaking; after that the app stays offline.
-
-```sh
-sayit models install kokoro-q8 --use   # once, ~90 MB
-sayit "Hello from Say It"              # speak
-sayit status                           # player + engine status
-sayit volume 0                         # silence; 1 = normal, 2 = boost
-sayit service status                   # is the daemon running?
-```
-
-After pulling updates, re-run `scripts/setup-sidecar.sh` (or `npm run setup`)
-and restart the service. The GUI and CLI talk to whatever is already on
-port 7878 — an old sidecar will look “stuck” or reject speak.
-
-## Desktop app (GUI)
-
-From a clone of this repo, with the sidecar already installed (`npm run setup` or `scripts/install.sh`):
-
-```sh
-npm install                 # once: @tauri-apps/cli
-npm --prefix app install    # once: SvelteKit UI
-npm run dev                 # sidecar + Tauri window
-```
-
-`npm run dev` starts the sidecar and the tray/window. If the daemon is already up (`sayit service start` or systemd), Tauri connects to it instead of spawning a second one.
-
-Equivalent: `npm run tauri dev` (same window; sidecar auto-spawn if port 7878 is free).
-
-```sh
-npm run tauri build         # .deb / AppImage (Linux shell only)
-```
-
-The `.deb` installs a **Say It** launcher and `/usr/bin/sayit` (the GUI).
-The setup script also puts the **CLI** at `~/.local/bin/sayit`. If your PATH
-lists `~/.local/bin` first, the GNOME icon or `sayit status` may run the CLI
-instead of the window. Launch the GUI with `/usr/bin/sayit`, the CLI with
-`~/.local/bin/sayit`.
 
 ## Models and first run
 
