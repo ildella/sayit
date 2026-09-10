@@ -131,7 +131,8 @@ read_clipboard()` ↔ `sayit-clipboard.sh`).
 |---|---|
 | `~/.config/sayit/token` | API token, 0600 — shared by app, CLI, scripts |
 | `~/.config/sayit/settings.json` | port, host, voice, speed, model, unload timeout |
-| `~/.local/share/sayit/sidecar/` | installed sidecar (by `scripts/setup-sidecar.sh`) |
+| `~/.local/share/sayit/sidecar/` | installed sidecar (by `scripts/setup-sidecar.sh` / `install.sh`) |
+| GUI package `$RESOURCE/sidecar/` | sidecar tree inside the `.deb` / `.rpm` (see `spawn_sidecar`) |
 | `~/.local/share/sayit/history.json` | last 200 entries, references WAV files |
 | `~/.cache/sayit/models/` | HF model cache (passed as `cache_dir` to kokoro-js) |
 | `~/.cache/sayit/audio/` | synthesized WAVs (deleted with history entries) |
@@ -146,14 +147,19 @@ disk. Anything that needs the API should resolve the token the same way.
 - `build.rs` + `tauri-build` exist because `tauri::generate_context!()`
   requires `OUT_DIR` — removing them breaks the build with a confusing macro
   error.
-- `beforeDevCommand`/`beforeBuildCommand` run from the **project root**, so
-  they use `--prefix app`; `frontendDist` is relative to `src-tauri/`, so it
-  keeps `../app/build`. Mixing these up produces an ENOENT two directories
-  away from the real problem.
+- `beforeDevCommand`/`beforeBuildCommand`/`beforeBundleCommand` run from the
+  **project root**, so they use `--prefix app` / `scripts/…`; `frontendDist`
+  is relative to `src-tauri/`, so it keeps `../app/build`. Mixing these up
+  produces an ENOENT two directories away from the real problem.
 - The tray icon has a 1×1 transparent fallback (`Image::new_owned`) because
   `default_window_icon()` can be `None` in some bundling configurations.
 - CSP in `tauri.conf.json` must keep `connect-src http://127.0.0.1:7878` or
   the webview can't reach the sidecar.
+- GUI packages (`npm run build:linux`) run `scripts/prepare-sidecar-bundle.sh`
+  then embed that tree as `bundle.resources` → `sidecar/`. The window binary
+  is `sayit-desktop` so it never shadows the CLI `sayit`. Spawn order:
+  `$SAYIT_SIDECAR_DIR` → bundled resources → `~/.local/share/sayit/sidecar`.
+  If 7878 is already healthy, the GUI does not spawn a second engine.
 
 ## 8. Known limitations (vs the original)
 

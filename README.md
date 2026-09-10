@@ -4,87 +4,107 @@
 [![CI macOS](https://img.shields.io/github/actions/workflow/status/ildella/sayit/ci-macos.yml?branch=master&label=macOS)](https://github.com/ildella/sayit/actions/workflows/ci-macos.yml)
 [![CI Windows](https://img.shields.io/github/actions/workflow/status/ildella/sayit/ci-windows.yml?branch=master&label=Windows)](https://github.com/ildella/sayit/actions/workflows/ci-windows.yml)
 
-Private, local text-to-speech, cross-platform. Say It turns copied text into
-speech with open models running entirely on your machine — your text and
-generated audio never leave your computer.
+Private, local text-to-speech. Say It turns copied text into speech with open
+models running entirely on your machine — your text and generated audio never
+leave your computer.
+
+This is a Linux-first port of [callebtc/sayit](https://github.com/callebtc/sayit)
+(macOS / Apple silicon). It keeps the original architecture and CLI while
+replacing Apple-specific layers with Tauri, Svelte, and kokoro-js.
 
 <p align="center">
-  <img src="docs/screenshots/desktop-speak.png" alt="Say It Linux desktop app — Speak tab" width="720">
+  <img src="docs/screenshots/desktop-speak.png" alt="Say It desktop app — Speak tab" width="720">
 </p>
 
-This is a multi-platform port of [callebtc/sayit](https://github.com/callebtc/sayit)
-(macOS / Apple silicon), keeping its architecture and CLI surface while
-swapping every Apple-specific layer for portable equivalents:
+Linux (X11 and Wayland) is built and tested. macOS and Windows should compile;
+help wanted.
 
-| macOS original            | This port                                   |
-| ------------------------- | ------------------------------------------- |
-| SwiftUI menu-bar app      | Tauri v2 + SvelteKit 2 / Svelte 5 tray app  |
-| MLX Audio (Apple silicon) | **kokoro-js** — Kokoro-82M on onnxruntime-node, pure JavaScript |
-| XPC                       | Token-protected REST API on 127.0.0.1:7878 + SSE |
-| Accessibility selection   | Clipboard hotkey (see Wayland notes below)  |
-| macOS Services            | `sayit-clipboard`, bindable in any DE       |
-| `sayit` CLI               | Same CLI, same commands                     |
+## Highlights
 
-No Python anywhere. The sidecar is Node ≥ 20, the UI is Svelte, the shell is Rust.
+- **Speak from anywhere.** Copy text and press the clipboard hotkey
+  (**Ctrl+Alt+V** on X11), or bind `sayit-clipboard` as a custom shortcut in
+  your desktop environment — the reliable path on Wayland.
+- **A desktop player.** Tray window to speak, pause, seek, change playback
+  speed, and revisit history without leaving your current app.
+- **Open models.** Download supported Kokoro-82M weights in the app or CLI
+  (`kokoro-q8` ~90 MB, or `kokoro-q4`). Speak never downloads on its own.
+- **Efficient model loading.** Only one model is kept in memory, and it is
+  unloaded after a configurable idle period (ten minutes by default).
+- **Local by design.** Synthesis works offline after model download. There is
+  no analytics, cloud inference, or passive clipboard monitoring.
+- **Hear your coding agent work.** The bundled
+  [Say It agent skill](skills/sayit/SKILL.md) provides live, hands-free spoken
+  progress updates while an agent works.
 
-## Platform status
+## Getting started
 
-| Platform | Status |
-| -------- | ------ |
-| Linux    | ✅ Built and tested (X11 & Wayland) |
-| macOS    | 🔶 Should build — help wanted |
-| Windows  | 🔶 Should build — help wanted |
+Two products, one engine. The CLI installer never needs a window. The GUI
+package includes its own copy of the sidecar and talks to whatever is already
+on port 7878.
 
-The Tauri v2 shell is cross-platform by design; only the playback helper
-(`mpv`, with `aplay` fallback) and clipboard tools are POSIX-flavored today.
-Porting notes for macOS/Windows contributors are welcome — see
-[LINUX.md](LINUX.md) for how the port is put together and why.
+### CLI (no window)
 
-## Quick start
-
-Requirements: Node ≥ 20, npm, and **mpv** for playback (falls back to `aplay`).
-Clipboard tools (`wl-paste` / `xclip` / `xsel`) only if you want the hotkey.
-
-### 1. Install
+Needs **Node ≥ 20**, npm, and **mpv** (`aplay` is a limited fallback).
+Clipboard tools (`wl-paste`, `xclip`, or `xsel`) only if you want the hotkey.
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/ildella/sayit/master/scripts/install.sh | bash -s -- --systemd
 ```
 
-Or from a clone of this repo:
+Or from a clone: `bash scripts/install.sh --systemd`. Omit `--systemd` to
+start the daemon once without enabling it. Put `~/.local/bin` on your `PATH`.
+
+Then download a model (once, then the app stays offline) and speak:
 
 ```sh
-bash scripts/install.sh                 # sidecar + sayit CLI
-bash scripts/install.sh --systemd       # + start automatically at login
+sayit models install kokoro-q8 --use
+sayit "Hello from Say It"
 ```
 
-That puts the sidecar in `~/.local/share/sayit/sidecar` and the **CLI** at
-`~/.local/bin/sayit`, then starts the daemon. Ensure `~/.local/bin` is on
-your `PATH`. Download a catalog model before speaking; after that the app
-stays offline.
+Or copy text and run `sayit-clipboard` (bind that in your desktop
+shortcuts). Speak returns an error until a catalog model is installed
+and selected.
 
-After pulling updates, re-run `scripts/setup-sidecar.sh` (or `npm run setup`)
-and restart the service. The GUI and CLI talk to whatever is already on
-port 7878 — an old sidecar will look “stuck” or reject speak.
+### Desktop app
 
-### 2. Run the CLI
+The Linux GUI is an **AppImage**. It embeds the sidecar. Needs **Node ≥ 20**
+and **mpv** on the machine (same as the CLI). No sudo.
+
+Download it from
+[Releases](https://github.com/ildella/sayit/releases) (or the Linux CI
+artifact), then:
 
 ```sh
-sayit models install kokoro-q8 --use   # once, ~90 MB
-sayit "Hello from Say It"              # speak
-sayit volume 0                         # silence; 1 = normal, 2 = boost
-sayit service status                   # is the daemon running?
+chmod +x SayIt-*.AppImage
+./SayIt-*.AppImage
 ```
 
-`sayit` talks to the sidecar on `127.0.0.1:7878`. If the daemon is down:
-`sayit service start` (or `systemctl --user start sayit` if you used
-`--systemd`).
+The window binary is `sayit-desktop`; it does not replace the CLI `sayit`.
+You can run both: whoever starts first owns port 7878; the other connects.
 
-### 3. Install the agent skill
+### Terminal
 
-The [skill](skills/sayit/SKILL.md) is from [callebtc/sayit](https://github.com/callebtc/sayit);
-this port only installs it next to the Linux CLI. After `install.sh` (or
-`npm run setup`):
+The install includes a `sayit` CLI for speech, playback, models, and
+automation:
+
+```sh
+sayit "Read this aloud"
+printf 'Read standard input' | sayit
+sayit status
+sayit pause
+sayit resume
+sayit volume 0          # silence; 1 = normal, 2 = boost
+sayit service status
+sayit skill path
+```
+
+Run `sayit --help` for all commands. The CLI talks to the sidecar on
+`127.0.0.1:7878`. If the daemon is down: `sayit service start` (or
+`systemctl --user start sayit` after `--systemd`).
+
+### Coding-agent voice mode
+
+After install:
 
 ```sh
 sayit skill install
@@ -105,66 +125,50 @@ cp "$(sayit skill path)" ~/.claude/skills/sayit/SKILL.md
 ```
 
 Re-run `sayit skill install` after upgrading Say It. The sidecar must be
-running (`sayit service start`) and a model installed before speech works.
+running and a model installed before speech works.
 
-### 4. Run the desktop app
+### Wayland vs X11
 
-From a clone, after the sidecar is installed (`install.sh` or `npm run setup`):
+In-app global shortcuts (**Ctrl+Alt+V**) work on X11. Wayland compositors
+block them — bind a **custom shortcut** in your desktop settings to
+`sayit-clipboard` (installed next to the CLI). There is no cross-compositor
+API for another app's *selection* (not clipboard); on X11 you can point
+`sayit-clipboard` at `xclip -o` (PRIMARY) instead.
 
-```sh
-npm install                 # once: @tauri-apps/cli
-npm --prefix app install    # once: SvelteKit UI
-npm run dev                 # sidecar + Tauri window
-```
+## Build from source
 
-`npm run dev` (or `npm run tauri dev`) opens the tray/window. If the daemon
-is already up, Tauri connects to it instead of spawning a second one.
+Contributors: live UI. The end-user GUI package is the AppImage.
 
-```sh
-npm run tauri build         # .deb / AppImage (Linux shell only)
-```
-
-The `.deb` installs a **Say It** launcher and `/usr/bin/sayit` (the GUI).
-The setup script also puts the **CLI** at `~/.local/bin/sayit`. If your PATH
-lists `~/.local/bin` first, the GNOME icon or `sayit status` may run the CLI
-instead of the window. Launch the GUI with `/usr/bin/sayit`, the CLI with
-`~/.local/bin/sayit`.
-
-### 5. Which engine is running?
-
-There is one synthesis engine today: **Kokoro-82M** via kokoro-js /
-onnxruntime-node (CPU). What *does* vary is the **catalog model** (q8 vs q4)
-and whether it is loaded in memory.
+You need Rust and [Tauri's prerequisites](https://v2.tauri.app/start/prerequisites/)
+as well as Node ≥ 20 and mpv.
 
 ```sh
-sayit status
+git clone https://github.com/ildella/sayit.git && cd sayit
+npm run setup              # sidecar + CLI into ~/.local (same as install.sh)
+npm install                # @tauri-apps/cli
+npm --prefix app install   # SvelteKit UI
+npm run dev                # live UI (developer loop, not a distribution)
 ```
 
-Example:
-
-```
-state:    idle
-engine:   loaded (kokoro-q8)
-sidecar:  0.x.x
-```
-
-- **engine** — `loaded` / `loading…` / `unloaded`, and the active model id
-  (`kokoro-q8` or `kokoro-q4`). Unloaded after idle timeout; the next speak
-  loads it again.
-- **sidecar** — installed sidecar version (and a protocol mismatch warning
-  if the CLI is newer than the daemon).
-
-List every catalog row and which one is **active**:
+If a daemon is already listening on port 7878, Tauri connects to it instead
+of spawning a second one.
 
 ```sh
-sayit models
+npm run build:appimage     # AppImage with sidecar inside (Linux CI)
+npm run build:linux        # .deb (optional)
+npm run build:ci           # compile the shell, skip installers (macOS/Windows CI)
 ```
 
-In the GUI: **Settings → Models**. The row marked in use is the engine
-the next speak will load. There is no separate GPU / ROCm / CUDA switch in
-this port — onnxruntime-node runs on CPU.
+After pulling updates, re-run `npm run setup` and restart the service so a
+CLI install is not talking to a stale sidecar.
 
 ## Architecture
+
+The SvelteKit frontend (in a Tauri v2 tray shell) is separate from a
+per-user Node sidecar that owns model downloads, synthesis, playback, and
+history. The app, CLI, and `sayit-clipboard` talk to that service over a
+token-protected REST + SSE API bound to `127.0.0.1:7878`. There is no
+Python; synthesis is **Kokoro-82M** via kokoro-js / onnxruntime-node (CPU).
 
 ```
 ┌──────────────┐   REST + SSE, Bearer token   ┌──────────────────┐
@@ -175,168 +179,17 @@ this port — onnxruntime-node runs on CPU.
 └──────────────┘                              └──────────────────┘
 ```
 
-- **sidecar/** — per-user service: synthesis (Kokoro ONNX via kokoro-js),
-  playback via mpv's JSON IPC (pause / seek / speed / volume), history, model catalog,
-  settings. One model in memory, unloaded after 10 idle minutes (configurable).
-- **app/** — SvelteKit 2 + Svelte 5 UI: speak box, transport, history, voices,
-  Settings marketplace for models, onboarding when none are installed.
-- **cli/sayit.js** — `sayit "text"`, `printf … | sayit`, `sayit status`,
-  `pause`, `resume`, `stop`, `seek`, `speed`, `volume`, `voices`, `models`, `history`, `replay`, `skill path`, `skill install`.
-- **src-tauri/** — tray icon, global hotkey (Ctrl+Alt+V speaks clipboard),
-  spawns the sidecar, hands the API token to the webview.
-
-## Models and first run
-
-Speech models are a **catalog**, not a silent download on first speak.
-
-- **Onboarding:** if nothing is installed, the Speak tab shows the recommended model (Kokoro q8, ~90 MB) and **Download and Use**. Deleting the last model brings that screen back.
-- **Marketplace:** Settings → Models lists every catalog entry we can run today (`kokoro-q8` and `kokoro-q4`). Download, Download and Use, cancel, Use, Delete (not the active model).
-- **Progress:** the UI shows downloading / canceling. Byte-level percent is not wired yet (kokoro-js does not expose a reliable byte callback).
-- **Speak never downloads.** `POST /v1/speak` returns 409 until a model is installed and selected.
-
-CLI:
-
-```sh
-sayit models
-sayit models install kokoro-q8 --use
-sayit models select kokoro-q4
-sayit models rm kokoro-q4
-```
-
-Weights land in `~/.cache/sayit/models`. After that the app stays offline. Adding another ONNX family later is a catalog row, not a new Settings screen.
-
-## Playback speed
-
-- **Speak tab slider:** 0.5×–2.5× in 0.25 steps (the default-speed setting uses the same range).
-- **Player − / + buttons:** ±0.25 per press while playing, clamped to 0.5×–4.0×.
-- **CLI:** `sayit speed <0.5-4>` accepts any value in the range, not just the steps.
-- Pitch is preserved at every speed (mpv `scaletempo`); at 1× the audio plays
-  untouched, and history replays apply speed only at playback — the stored
-  audio file is always the original.
-
-## Setup (development)
-
-Requirements: Node ≥ 20, npm, **mpv** (recommended; falls back to `aplay`),
-and `wl-paste` (Wayland) or `xclip`/`xsel` (X11) for clipboard features.
-Rust + Tauri prerequisites only if you build the app.
-
-```sh
-git clone https://github.com/ildella/sayit && cd sayit
-
-# 1. Install sidecar + CLI into ~/.local/share/sayit and ~/.local/bin
-npm run setup          # or: sh scripts/setup-sidecar.sh
-
-# 2a. Run the sidecar standalone…
-cd ~/.local/share/sayit/sidecar && npm start
-
-# 2b. …or as a systemd user service
-cp scripts/sayit.service ~/.config/systemd/user/
-systemctl --user enable --now sayit
-```
-
-### Desktop app
-
-```sh
-npm install                 # root: pulls @tauri-apps/cli
-npm --prefix app install
-npm run tauri dev           # dev: vite on :1420 + sidecar auto-spawn
-npm run tauri build         # produces .deb / AppImage (Linux shell only)
-npm run build:ci            # compile the shell, skip installers
-```
-
-CI (`.github/workflows/ci.yml`) runs `build:ci` on Ubuntu 22.04, macOS, and
-Windows. That only proves the crate and UI compile — the TTS sidecar is still
-installed separately via `scripts/install.sh`, so those binaries are not a
-shippable app.
-
-In dev, the app finds the sidecar via `$SAYIT_SIDECAR_DIR` or the installed
-copy in `~/.local/share/sayit/sidecar`; if a service is already listening on
-7878 it just connects.
-
-## Wayland vs X11
-
-Global shortcut registration (Ctrl+Alt+V inside the app) works on X11.
-On Wayland, compositors block app-registered global shortcuts — the reliable
-path is a **custom shortcut in your desktop settings** bound to
-`sayit-clipboard` (installed by the setup script). Reading another app's
-*selection* (not clipboard) has no cross-compositor API on Wayland; on X11
-you can adapt `sayit-clipboard` to use `xclip -o` (PRIMARY) instead.
-
-## Config & data
-
-| Path | Content |
-| ---- | ------- |
-| `~/.config/sayit/token` | API token (0600), shared by app/CLI/scripts |
-| `~/.config/sayit/settings.json` | port, voice, speed, volume (0–2), unload timeout |
-| `~/.local/share/sayit/history.json` | spoken history (last 200) |
-| `~/.cache/sayit/models` | downloaded models |
-| `~/.cache/sayit/audio` | synthesized WAVs |
-| `~/.cache/sayit/sidecar.log` | sidecar stdout/stderr (when spawned by the GUI) |
-| `~/.cache/sayit/sidecar.pid` | pid of the running sidecar, used by health/recovery |
-
-## Troubleshooting
-
-**`error: Model is not installed`** — download once:
-
-```sh
-sayit models install kokoro-q8 --use
-```
-
-Speak never fetches weights by itself.
-
-**Empty Voice menu, red connection dot, or Speak stuck on Synthesizing** —
-the UI is talking to an outdated sidecar. The GUI handles this on its own:
-it verifies sidecar health and protocol at launch and every 30 seconds, and
-retires + respawns a stale one (a process it cannot attribute to this install
-is never touched). One caveat: if the stale sidecar is the systemd unit itself,
-`Restart=on-failure` brings it back while the GUI waits for the port — stop
-the unit first (`systemctl --user stop sayit`), let the GUI win, then either
-keep the GUI-managed sidecar or refresh the install and start the unit again.
-Without the GUI — daemon-only setups — stop the unit, refresh the install,
-start again:
-
-```sh
-systemctl --user stop sayit
-# pkill alone is not enough if the user unit is enabled — systemd will respawn it
-ss -ltnp | grep 7878 || echo '7878 libero'
-./scripts/setup-sidecar.sh
-systemctl --user start sayit   # or: ~/.local/bin/sayit service start
-sayit models
-sayit status
-```
-
-Logs: `journalctl --user -u sayit -f` and `~/.cache/sayit/sidecar.log`.
-
-**`sayit status` opens the desktop window** — PATH hit `/usr/bin/sayit` (GUI).
-Use `~/.local/bin/sayit status`.
-
-## API (v1)
-
-`GET /v1/status` · `GET /v1/health` (liveness + sidecar version/protocol) ·
-`POST /v1/speak|pause|resume|stop|seek|speed|volume` ·
-`GET /v1/voices|models|history|settings` ·
-`POST /v1/models/:id/install|select` · `DELETE /v1/models/:id[/install]` ·
-`POST /v1/history/replay` ·
-`DELETE /v1/history/:id` · `GET /v1/events` (SSE) — all behind
-`Authorization: Bearer <token>`.
-
-## Differences from the original
-
-- **Kokoro only, for now.** Qwen3-TTS / Chatterbox / OmniVoice are MLX- or
-  Python-bound; kokoro-js is the one solid pure-JS engine today. The engine
-  layer (`sidecar/src/engine.js`) is isolated so a second backend (e.g.
-  ONNX exports of other models) can slot in.
-- **No voice cloning yet.** Kokoro has no cloning support.
-- **No selection capture on Linux/Wayland** (see Wayland vs X11).
+How the port maps onto the original (XPC → loopback HTTP, MLX → kokoro-js,
+selection → clipboard), filesystem layout, and invariants are in
+[LINUX.md](LINUX.md).
 
 ## Acknowledgments
 
-Say It was created by [callebtc](https://github.com/callebtc) as a beautiful,
+Say It was created by [callebtc](https://github.com/callebtc) as a
 privacy-first macOS app. This project exists thanks to his generosity in
-releasing it under MIT — thank you! If you want the original Apple-silicon
-experience (MLX Audio, voice cloning, Voice Studio), use
-[callebtc/sayit](https://github.com/callebtc/sayit). This port reuses its
-architecture, API surface, and CLI design.
+releasing it under MIT. For the original Apple-silicon experience (MLX Audio,
+voice cloning, Voice Studio), use
+[callebtc/sayit](https://github.com/callebtc/sayit).
 
 ## License
 

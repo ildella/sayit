@@ -8,6 +8,9 @@
     "dev": "npm --prefix sidecar run start & npm run tauri dev",
     "build:app": "npm --prefix app run build",
     "build:ci": "tauri build --no-bundle --ci",
+    "build:linux": "tauri build -b deb",
+    "build:appimage": "tauri build -b appimage",
+    "build:rpm": "tauri build -b rpm",
     "setup": "sh scripts/setup-sidecar.sh",
     "tauri": "tauri"
   },

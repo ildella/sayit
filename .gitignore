@@ -3,6 +3,10 @@ app/build/
 app/.svelte-kit/
 src-tauri/target/
 src-tauri/gen/
+src-tauri/sidecar-bundle/node_modules/
+src-tauri/sidecar-bundle/src/
+src-tauri/sidecar-bundle/package.json
+src-tauri/sidecar-bundle/package-lock.json
 *.log
 
 # OS / editor junk
@@ -14,3 +18,4 @@ Thumbs.db
 .idea/
 .vscode/
 .codegraph/
+.zcode/
