@@ -1,11 +1,10 @@
-# Build Linux GUI packages with the Node sidecar inside.
-# PR CI stays --no-bundle; this job is tags (and manual dispatch) only.
+# Tag v* → signed Linux packages + GitHub Release + updater latest.json.
+# PR/master CI stays unsigned (ci-linux.yml). Do not merge the two.
 name: release-linux
 
 on:
   push:
     tags: ["v*"]
-  workflow_dispatch:
 
 permissions:
   contents: write
@@ -14,9 +13,12 @@ concurrency:
   group: release-linux-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  APPIMAGE_EXTRACT_AND_RUN: "1"
+
 jobs:
   linux:
-    name: deb + rpm (ubuntu-24.04)
+    name: publish (ubuntu-24.04)
     runs-on: ubuntu-24.04
 
     steps:
@@ -47,26 +49,15 @@ jobs:
           npm ci
           npm --prefix app ci
 
-      - name: Bundle deb and rpm
-        run: npx tauri build -b deb,rpm
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: linux-packages
-          path: |
-            src-tauri/target/release/bundle/deb/*.deb
-            src-tauri/target/release/bundle/rpm/*.rpm
-
-      - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
+      - uses: tauri-apps/tauri-action@v1
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release create "${{ github.ref_name }}" \
-            src-tauri/target/release/bundle/deb/*.deb \
-            src-tauri/target/release/bundle/rpm/*.rpm \
-            --generate-notes --verify-tag \
-          || gh release upload "${{ github.ref_name }}" \
-               src-tauri/target/release/bundle/deb/*.deb \
-               src-tauri/target/release/bundle/rpm/*.rpm \
-               --clobber
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: ${{ github.ref_name }}
+          generateReleaseNotes: true
+          args: >-
+            -b deb,rpm,appimage
+            --config {"bundle":{"createUpdaterArtifacts":true}}

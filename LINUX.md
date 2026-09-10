@@ -153,13 +153,22 @@ disk. Anything that needs the API should resolve the token the same way.
   produces an ENOENT two directories away from the real problem.
 - The tray icon has a 1×1 transparent fallback (`Image::new_owned`) because
   `default_window_icon()` can be `None` in some bundling configurations.
-- CSP in `tauri.conf.json` must keep `connect-src http://127.0.0.1:7878` or
+- Config is `src-tauri/tauri.conf.json5`. App version is `version: '../package.json'`;
+  bump root `package.json` and `src-tauri/Cargo.toml` together before a `v*` tag.
+- CSP in `tauri.conf.json5` must keep `connect-src http://127.0.0.1:7878` or
   the webview can't reach the sidecar.
 - GUI packages (`npm run build:linux`) run `scripts/prepare-sidecar-bundle.sh`
   then embed that tree as `bundle.resources` → `sidecar/`. The window binary
   is `sayit-desktop` so it never shadows the CLI `sayit`. Spawn order:
   `$SAYIT_SIDECAR_DIR` → bundled resources → `~/.local/share/sayit/sidecar`.
   If 7878 is already healthy, the GUI does not spawn a second engine.
+- Auto-update is **AppImage only** (`tauri-plugin-updater`). Push a `v*`
+  tag; `release-linux.yml` runs `tauri-action`, which signs the AppImage
+  (CI secrets `TAURI_SIGNING_PRIVATE_KEY` / `_PASSWORD` — not another
+  project's global env), creates the GitHub Release, and uploads
+  `latest.json`. `createUpdaterArtifacts` is only in that job's `--config`
+  so PR AppImage CI stays unsigned. Settings → Check for updates is
+  user-initiated; it is not telemetry.
 
 ## 8. Known limitations (vs the original)
 
@@ -183,7 +192,7 @@ disk. Anything that needs the API should resolve the token the same way.
 - **engine.js is a boundary** — engine-agnostic interface out, kokoro-js in.
 - **Models come from the catalog** — do not hardcode Hugging Face ids in the UI.
 - **Offline after first model download**; no analytics, no telemetry, no
-  passive clipboard monitoring (the original's privacy posture is part of
-  the product).
+  passive clipboard monitoring. AppImage update checks hit GitHub only
+  when the user clicks Check for updates.
 - CLI command surface stays compatible with the original where the feature
   exists.
