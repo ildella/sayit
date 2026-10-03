@@ -1,11 +1,8 @@
-# Windows CI: unsigned MSI.
-# Tags ship signed artifacts via release-windows.yml.
+# Windows CI: unsigned MSI, on demand only. Tags ship signed artifacts via
+# release-windows.yml.
 name: ci-windows
 
 on:
-  push:
-    branches: [master]
-  pull_request:
   workflow_dispatch:
 
 concurrency:

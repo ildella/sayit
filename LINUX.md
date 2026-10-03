@@ -184,8 +184,10 @@ disk. Anything that needs the API should resolve the token the same way.
     The `VOICES` table in `engine.js` lists what actually works.
 5. Single in-flight job; no queue (§3).
 6. Linux is the tested product. Windows CI ships an experimental MSI; macOS
-   still compiles without bundling. Sidecar/CLI are platform-agnostic in
-   principle (mpv/aplay and clipboard tools are the Linux-specific bits).
+   is on-demand only and compiles without bundling — for voice on Apple
+   silicon, use [callebtc/sayit](https://github.com/callebtc/sayit), the
+   original. Sidecar/CLI are platform-agnostic in principle (mpv/aplay and
+   clipboard tools are the Linux-specific bits).
 
 ## 9. Invariants — do not break these
 

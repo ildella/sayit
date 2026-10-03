@@ -1,8 +1,6 @@
 # Say It
 
 [![CI Linux](https://img.shields.io/github/actions/workflow/status/ildella/sayit/ci-linux.yml?branch=master&label=Linux)](https://github.com/ildella/sayit/actions/workflows/ci-linux.yml)
-[![CI macOS](https://img.shields.io/github/actions/workflow/status/ildella/sayit/ci-macos.yml?branch=master&label=macOS)](https://github.com/ildella/sayit/actions/workflows/ci-macos.yml)
-[![CI Windows](https://img.shields.io/github/actions/workflow/status/ildella/sayit/ci-windows.yml?branch=master&label=Windows)](https://github.com/ildella/sayit/actions/workflows/ci-windows.yml)
 
 Private, local text-to-speech. Say It turns copied text into speech with open
 models running entirely on your machine — your text and generated audio never
@@ -18,7 +16,12 @@ replacing Apple-specific layers with Tauri, Svelte, and kokoro-js.
 
 Linux (X11 and Wayland) is built and tested. Windows CI builds an experimental
 MSI (needs Node and mpv on the machine; playback is not a full Windows port).
-macOS should compile; help wanted.
+
+**On macOS, use the original.** This is the Linux port. If you want voice on
+Apple silicon, install [callebtc/sayit](https://github.com/callebtc/sayit) —
+the app Calle wrote for it. This repo can compile the shell on macOS, but it is
+not the macOS voice experience and does not replace it. That is by design, not
+a gap waiting to be filled.
 
 ## Highlights
 
@@ -162,7 +165,7 @@ of spawning a second one.
 npm run build:appimage     # AppImage with sidecar inside (Linux CI)
 npm run build:linux        # .deb (optional)
 npm run build:msi          # MSI with sidecar inside (Windows CI; Windows host)
-npm run build:ci           # compile the shell, skip installers (macOS CI)
+npm run build:ci           # compile the shell, skip installers (on-demand macOS CI)
 ```
 
 After pulling updates, re-run `npm run setup` and restart the service so a
