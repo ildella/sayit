@@ -1,5 +1,5 @@
 # Tag v* → signed MSI + GitHub Release assets (merges into latest.json).
-# PR/master CI stays unsigned (ci-windows.yml). Do not merge the two.
+# On-demand CI stays unsigned (ci-windows.yml). Do not merge the two.
 name: release-windows
 
 on:
