@@ -17,6 +17,13 @@ use tauri::{AppHandle, Manager};
 
 /// Sidecar tree shipped inside the GUI package (`bundle.resources` → `sidecar/`).
 static BUNDLED_SIDECAR_DIR: OnceLock<PathBuf> = OnceLock::new();
+
+/// Last sidecar startup failure, surfaced to the UI via `startup_error()`.
+static STARTUP_ERROR: OnceLock<Mutex<Option<String>>> = OnceLock::new();
+
+fn set_startup_error(msg: impl Into<String>) {
+    *STARTUP_ERROR.get_or_init(|| Mutex::new(None)).lock().unwrap() = Some(msg.into());
+}
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
 /// Must match `PROTOCOL_VERSION` in sidecar/src/config.js. A sidecar serving
@@ -46,6 +53,23 @@ fn read_token() -> String {
 #[tauri::command]
 fn get_token() -> String {
     read_token()
+}
+
+#[tauri::command]
+fn startup_error() -> Option<String> {
+    STARTUP_ERROR.get_or_init(|| Mutex::new(None)).lock().unwrap().clone()
+}
+
+/// Which update path the UI should offer. The Tauri updater only works for
+/// AppImage on Linux and the MSI on Windows; deb/rpm are owned by the package
+/// manager, so those installs get a "update via your package manager" note.
+#[tauri::command]
+fn update_mode() -> &'static str {
+    if cfg!(target_os = "linux") && std::env::var_os("APPIMAGE").is_none() {
+        "package-manager"
+    } else {
+        "updater"
+    }
 }
 
 /// Clipboard text: Wayland first, X11 fallback.
@@ -107,9 +131,19 @@ fn remember_bundled_sidecar(app: &tauri::App) {
 ///   2. bundled resources (GUI .deb / .rpm)
 ///   3. ~/.local/share/sayit/sidecar (CLI install.sh)
 fn spawn_sidecar() -> Option<Child> {
-    let dir = sidecar_dirs()
+    let dir = match sidecar_dirs()
         .into_iter()
-        .find(|p| p.join("src/index.js").is_file())?;
+        .find(|p| p.join("src/index.js").is_file())
+    {
+        Some(dir) => dir,
+        None => {
+            set_startup_error(
+                "Say It could not find its sidecar service. Reinstall the package, \
+                 or set $SAYIT_SIDECAR_DIR to a sidecar directory.",
+            );
+            return None;
+        }
+    };
 
     let node = std::env::var("SAYIT_NODE").unwrap_or_else(|_| "node".to_string());
     let log_path = dirs::cache_dir()
@@ -132,14 +166,27 @@ fn spawn_sidecar() -> Option<Child> {
         }
         None => (Stdio::null(), Stdio::null()),
     };
-    Command::new(node)
+    match Command::new(&node)
         .arg("src/index.js")
         .current_dir(&dir)
         .stdin(Stdio::null())
         .stdout(stdout)
         .stderr(stderr)
         .spawn()
-        .ok()
+    {
+        Ok(child) => Some(child),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            set_startup_error(format!(
+                "Node.js was not found (tried `{node}`). Say It needs Node.js 20 or \
+                 newer — install it, or set $SAYIT_NODE to a node binary."
+            ));
+            None
+        }
+        Err(e) => {
+            set_startup_error(format!("Could not start the sidecar service: {e}"));
+            None
+        }
+    }
 }
 
 #[derive(serde::Deserialize)]
@@ -429,7 +476,7 @@ fn main() {
                 Ok(())
             }
         })
-        .invoke_handler(tauri::generate_handler![get_token])
+        .invoke_handler(tauri::generate_handler![get_token, startup_error, update_mode])
         .build(tauri::generate_context!())
         .expect("error while building Say It")
         .run({

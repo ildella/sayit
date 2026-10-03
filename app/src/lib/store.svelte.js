@@ -1,5 +1,5 @@
 // Shared reactive state (Svelte 5 runes), fed by the sidecar's SSE stream.
-import { openEvents, getStatus, getVoices, getHistory, getSettings, getModels } from './api.js';
+import { openEvents, getStatus, getVoices, getHistory, getSettings, getModels, getStartupError } from './api.js';
 
 export const state = $state({
   connected: false,
@@ -37,7 +37,10 @@ export async function initStore() {
       state.connected = true;
     } catch (err) {
       boot = null;
-      state.error = `Cannot reach the sayit service: ${err.message}`;
+      // A shell-recorded startup failure (missing node/sidecar) is more useful
+      // than the raw fetch error, so prefer it when present.
+      const startup = await getStartupError();
+      state.error = startup || `Cannot reach the sayit service: ${err.message}`;
       return;
     }
 

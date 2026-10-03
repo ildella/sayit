@@ -1,0 +1,4 @@
+#!/bin/sh
+# Installed as /usr/bin/sayit by the sayit .deb/.rpm package.
+# Runs the bundled CLI (ESM) with the system Node.js.
+exec node /usr/lib/SayIt/cli/sayit.js "$@"

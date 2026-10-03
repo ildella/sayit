@@ -71,10 +71,12 @@ and selected.
 
 ### Desktop app
 
-The Linux GUI is an **AppImage**. It embeds the sidecar. Needs **Node ≥ 20**
-and **mpv** on the machine (same as the CLI). No sudo. Tags also publish an
-experimental **Windows MSI** (same Node + mpv requirement; not a full Windows
-port).
+The Linux GUI ships as an **AppImage**, a **.deb**, and a **.rpm**; all three
+embed the sidecar, the `sayit` CLI, `sayit-clipboard`, the agent skill and the
+licence. They need **Node ≥ 20** and **mpv** on the machine (the deb/rpm
+declare both; clipboard tools are recommended). The AppImage needs no sudo.
+Tags also publish an experimental **Windows MSI** (same Node + mpv
+requirement; not a full Windows port).
 
 Download it from
 [Releases](https://github.com/ildella/sayit/releases), then:
@@ -84,11 +86,20 @@ chmod +x SayIt-*.AppImage
 ./SayIt-*.AppImage
 ```
 
-The window binary is `sayit-desktop`; it does not replace the CLI `sayit`.
-You can run both: whoever starts first owns port 7878; the other connects.
+Or install the package:
+
+```sh
+sudo apt install ./SayIt_*_amd64.deb     # Debian/Ubuntu
+sudo pacman -U SayIt_*_amd64.pkg.tar.zst # Arch (see packaging/omarchy)
+```
+
+The window binary is `sayit-desktop`; installing the package also gives you
+`sayit` and `sayit-clipboard` on your `PATH`. It does not replace an existing
+CLI install — whoever starts first owns port 7878; the other connects.
 
 Auto-update (Settings → Check for updates) applies to the AppImage and the
-experimental Windows MSI. `.deb` / `.rpm` stay distro packages.
+experimental Windows MSI. `.deb` / `.rpm` are owned by the distro: Settings
+points you at your package manager instead of showing a broken update button.
 
 ### Terminal
 

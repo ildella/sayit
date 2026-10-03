@@ -46,6 +46,33 @@
     ],
     resources: {
       "sidecar-bundle": "sidecar",
+      // CLI + skill travel inside the package so the .deb/.rpm is
+      // self-contained: the CLI finds ../sidecar and ../skills unpatched.
+      "../cli": "cli",
+      "../skills": "skills",
+      "../scripts/sayit-clipboard.sh": "scripts/sayit-clipboard.sh",
+    },
+    linux: {
+      deb: {
+        depends: ["nodejs (>= 20)", "mpv"],
+        recommends: ["wl-clipboard", "xclip", "xsel", "alsa-utils"],
+        files: {
+          "/usr/bin/sayit": "../packaging/bin/sayit",
+          "/usr/bin/sayit-clipboard": "../packaging/bin/sayit-clipboard",
+          // Tauri's deb bundler ignores bundle.licenseFile, so ship the
+          // licence explicitly (Debian package name is `say-it`).
+          "/usr/share/doc/say-it/copyright": "../LICENSE",
+        },
+      },
+      rpm: {
+        depends: ["nodejs >= 20", "mpv"],
+        recommends: ["wl-clipboard", "xclip", "xsel", "alsa-utils"],
+        files: {
+          "/usr/bin/sayit": "../packaging/bin/sayit",
+          "/usr/bin/sayit-clipboard": "../packaging/bin/sayit-clipboard",
+          "/usr/share/licenses/say-it/LICENSE": "../LICENSE",
+        },
+      },
     },
   },
   plugins: {
