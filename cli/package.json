@@ -1,0 +1,4 @@
+{
+  "//": "Marks cli/sayit.js as ESM explicitly, so it runs under any Node >= 20 without relying on syntax detection. No dependencies here.",
+  "type": "module"
+}

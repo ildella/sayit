@@ -43,6 +43,12 @@ engine** in this port. Consequences:
   touching the server, player, or UI. **Do not leak kokoro-js types past
   this module.**
 
+`@huggingface/transformers`' Node build **statically imports `sharp`** at
+module load (`dist/transformers.node.mjs`, line 6), so `sharp`/libvips must
+stay in the sidecar tree even though Kokoro never touches images — removing
+it makes the whole engine fail to import, not just image code. The GUI
+package keeps `sharp` for that reason (see §7).
+
 Long-text handling: Kokoro can't ingest arbitrary length, so `engine.js`
 chunks at sentence boundaries (~400 chars), synthesizes chunk-by-chunk
 (progress events over SSE), and **concatenates raw PCM16 and rewrites the WAV
@@ -133,6 +139,9 @@ read_clipboard()` ↔ `sayit-clipboard.sh`).
 | `~/.config/sayit/settings.json` | port, host, voice, speed, model, unload timeout |
 | `~/.local/share/sayit/sidecar/` | installed sidecar (by `scripts/setup-sidecar.sh` / `install.sh`) |
 | GUI package `$RESOURCE/sidecar/` | sidecar tree inside the `.deb` / `.rpm` (see `spawn_sidecar`) |
+| GUI package `$RESOURCE/cli/` | `sayit` CLI (ESM) inside the package — `../sidecar` and `../skills` resolve unpatched |
+| GUI package `$RESOURCE/skills/sayit/` | agent skill bundled for `sayit skill path` / `sayit skill install` |
+| `/usr/bin/sayit`, `/usr/bin/sayit-clipboard` | wrappers the `.deb`/`.rpm` installs (`bundle.linux.{deb,rpm}.files`), exec'ing the bundled CLI/script |
 | `~/.local/share/sayit/history.json` | last 200 entries, references WAV files |
 | `~/.cache/sayit/models/` | HF model cache (passed as `cache_dir` to kokoro-js) |
 | `~/.cache/sayit/audio/` | synthesized WAVs (deleted with history entries) |
@@ -163,6 +172,16 @@ disk. Anything that needs the API should resolve the token the same way.
   `sayit-desktop` so it never shadows the CLI `sayit`. Spawn order:
   `$SAYIT_SIDECAR_DIR` → bundled resources → `~/.local/share/sayit/sidecar`.
   If 7878 is already healthy, the GUI does not spawn a second engine.
+- The `.deb`/`.rpm` are **self-contained**: `bundle.resources` also carries
+  `cli/` (ESM — `cli/package.json` sets `"type": "module"`), `skills/` and
+  `scripts/sayit-clipboard.sh`, and `bundle.linux.{deb,rpm}.files` drops the
+  `/usr/bin/sayit{,-clipboard}` wrappers (`packaging/bin/`) plus the licence
+  (`/usr/share/licenses/say-it/LICENSE` for rpm, `/usr/share/doc/say-it/copyright`
+  for deb — Tauri's deb bundler ignores `bundle.licenseFile`, so it is listed
+  in `files`). `depends`
+  declares `nodejs (>= 20)` and `mpv`; `recommends` lists the clipboard tools
+  and `alsa-utils`. The CLI finds `../sidecar` and `../skills` with no patch.
+  Keep the wrapper paths in sync with the `$RESOURCE` layout above.
 - Auto-update is **AppImage on Linux, MSI on Windows** (`tauri-plugin-updater`).
   Push a `v*` tag; `release-linux.yml` and `release-windows.yml` run
   `tauri-action`, which signs the bundles (CI secrets
@@ -170,7 +189,10 @@ disk. Anything that needs the API should resolve the token the same way.
   env), creates/updates the GitHub Release, and merges `latest.json`.
   `createUpdaterArtifacts` is only in those jobs' `--config` so PR CI stays
   unsigned. Settings → Check for updates is user-initiated; it is not
-  telemetry. The Windows MSI is experimental: sidecar still needs Node on
+  telemetry. The UI hides it unless the shell says the updater can work: the
+  `update_mode` command returns `package-manager` for a Linux install without
+  `$APPIMAGE` (deb/rpm), and Settings then points at the package manager
+  instead. The Windows MSI is experimental: sidecar still needs Node on
   PATH and mpv; playback/clipboard are Linux-oriented.
 
 ## 8. Known limitations (vs the original)

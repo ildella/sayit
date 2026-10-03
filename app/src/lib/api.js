@@ -41,6 +41,19 @@ async function api(method, path, body) {
   return res.json();
 }
 
+// Tauri-only helpers: shell-owned values the sidecar cannot report.
+async function invokeSafe(command) {
+  if (typeof window !== 'undefined' && window.__TAURI__?.core) {
+    try { return await window.__TAURI__.core.invoke(command); } catch { /* not in Tauri, or command failed */ }
+  }
+  return null;
+}
+
+/** Last sidecar startup failure recorded by the Rust shell (missing node, …). */
+export const getStartupError = () => invokeSafe('startup_error');
+/** "updater" when the app can self-update, "package-manager" for deb/rpm installs. */
+export const getUpdateMode = () => invokeSafe('update_mode');
+
 export const speak = (text, opts) => api('POST', '/v1/speak', { text, ...opts });
 export const pause = () => api('POST', '/v1/pause');
 export const resume = () => api('POST', '/v1/resume');

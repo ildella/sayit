@@ -1,0 +1,4 @@
+#!/bin/sh
+# Installed as /usr/bin/sayit-clipboard by the sayit .deb/.rpm package.
+# Bind this to a desktop shortcut (Hyprland, GNOME, …) to speak the clipboard.
+exec sh /usr/lib/SayIt/scripts/sayit-clipboard.sh "$@"

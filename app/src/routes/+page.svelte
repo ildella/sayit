@@ -8,12 +8,14 @@
   let voice = $state('af_heart');
   let speed = $state(1.0);
   let appVersion = $state('');
+  let updateMode = $state('updater');
   let updatePhase = $state('idle');
   let updateInfo = $state(null);
   let downloadPct = $state(0);
 
   onMount(() => {
     initStore();
+    api.getUpdateMode().then((m) => { if (m) updateMode = m; }).catch(() => {});
     import('@tauri-apps/api/app')
       .then(({ getVersion }) => getVersion())
       .then((v) => { appVersion = v; })
@@ -398,23 +400,30 @@
 
         {#if appVersion}
           <h3>Updates</h3>
-          <p class="dim">AppImage only. Version {appVersion}. Checks GitHub Releases when you ask — nothing is sent in the background.</p>
-          {#if updatePhase === 'idle' || updatePhase === 'error'}
-            <button onclick={checkForUpdates}>Check for updates</button>
-          {:else if updatePhase === 'checking'}
-            <p class="dim">Checking…</p>
-          {:else if updatePhase === 'none'}
-            <p class="dim">You are on the latest version.</p>
-            <button onclick={checkForUpdates}>Check again</button>
-          {:else if updatePhase === 'available'}
-            <p>Version {updateInfo.version} is available.</p>
-            {#if updateInfo.body}<p class="dim">{updateInfo.body}</p>{/if}
-            <button class="primary" onclick={installUpdate}>Download and install</button>
-          {:else if updatePhase === 'downloading'}
-            <p class="dim">Downloading… {downloadPct}%</p>
-            <div class="track"><div class="fill" style:width="{downloadPct}%"></div></div>
-          {:else if updatePhase === 'installing'}
-            <p class="dim">Installing… the app will restart.</p>
+          {#if updateMode === 'package-manager'}
+            <p class="dim">
+              Version {appVersion}. Installed from a package, so updates come from your
+              package manager (e.g. <code>pacman -Syu</code> or <code>apt upgrade</code>).
+            </p>
+          {:else}
+            <p class="dim">AppImage only. Version {appVersion}. Checks GitHub Releases when you ask — nothing is sent in the background.</p>
+            {#if updatePhase === 'idle' || updatePhase === 'error'}
+              <button onclick={checkForUpdates}>Check for updates</button>
+            {:else if updatePhase === 'checking'}
+              <p class="dim">Checking…</p>
+            {:else if updatePhase === 'none'}
+              <p class="dim">You are on the latest version.</p>
+              <button onclick={checkForUpdates}>Check again</button>
+            {:else if updatePhase === 'available'}
+              <p>Version {updateInfo.version} is available.</p>
+              {#if updateInfo.body}<p class="dim">{updateInfo.body}</p>{/if}
+              <button class="primary" onclick={installUpdate}>Download and install</button>
+            {:else if updatePhase === 'downloading'}
+              <p class="dim">Downloading… {downloadPct}%</p>
+              <div class="track"><div class="fill" style:width="{downloadPct}%"></div></div>
+            {:else if updatePhase === 'installing'}
+              <p class="dim">Installing… the app will restart.</p>
+            {/if}
           {/if}
         {/if}
 
