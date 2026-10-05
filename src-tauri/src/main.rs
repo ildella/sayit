@@ -72,6 +72,13 @@ fn update_mode() -> &'static str {
     }
 }
 
+/// Quit the whole app (window, sidecar and tray). Bound to Ctrl+Q in the UI,
+/// since keyboard users otherwise have only the tray's Quit item.
+#[tauri::command]
+fn quit_app(app: AppHandle) {
+    app.exit(0);
+}
+
 /// Clipboard text: Wayland first, X11 fallback.
 fn read_clipboard() -> Option<String> {
     for (cmd, args) in [
@@ -417,7 +424,23 @@ fn recovery_watcher(sidecar: Arc<Mutex<Option<Child>>>, shutdown: Arc<AtomicBool
     }
 }
 
+/// WebKitGTK's DMA-BUF renderer fails on NVIDIA + Wayland with
+/// "Error 71 (Protocol error) dispatching to Wayland display". Fall back to
+/// the shared-memory renderer when an NVIDIA GPU is present, unless the user
+/// set the variable themselves.
+fn apply_webkit_nvidia_fallback() {
+    if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_some() {
+        return;
+    }
+    let nvidia = PathBuf::from("/dev/nvidia0").exists()
+        || PathBuf::from("/sys/module/nvidia").exists();
+    if nvidia {
+        std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+    }
+}
+
 fn main() {
+    apply_webkit_nvidia_fallback();
     let sidecar = Arc::new(Mutex::new(None::<Child>));
     let shutdown = Arc::new(AtomicBool::new(false));
 
@@ -476,7 +499,7 @@ fn main() {
                 Ok(())
             }
         })
-        .invoke_handler(tauri::generate_handler![get_token, startup_error, update_mode])
+        .invoke_handler(tauri::generate_handler![get_token, startup_error, update_mode, quit_app])
         .build(tauri::generate_context!())
         .expect("error while building Say It")
         .run({

@@ -154,6 +154,11 @@ block them — bind a **custom shortcut** in your desktop settings to
 API for another app's *selection* (not clipboard); on X11 you can point
 `sayit-clipboard` at `xclip -o` (PRIMARY) instead.
 
+**NVIDIA on Wayland.** WebKitGTK's DMA-BUF renderer crashes there with
+"Error 71 (Protocol error) dispatching to Wayland display". Say It detects an
+NVIDIA GPU and disables that renderer automatically; if another setup hits the
+same error, set `WEBKIT_DISABLE_DMABUF_RENDERER=1` yourself.
+
 ## Build from source
 
 Contributors: live UI. The end-user GUI package is the AppImage.
