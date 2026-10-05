@@ -12,6 +12,7 @@
     "build:appimage": "tauri build -b appimage",
     "build:rpm": "tauri build -b rpm",
     "build:msi": "tauri build -b msi",
+    "publish:omarchy": "bash scripts/publish-omarchy.sh",
     "setup": "sh scripts/setup-sidecar.sh",
     "tauri": "tauri"
   },
