@@ -417,7 +417,23 @@ fn recovery_watcher(sidecar: Arc<Mutex<Option<Child>>>, shutdown: Arc<AtomicBool
     }
 }
 
+/// WebKitGTK's DMA-BUF renderer fails on NVIDIA + Wayland with
+/// "Error 71 (Protocol error) dispatching to Wayland display". Fall back to
+/// the shared-memory renderer when an NVIDIA GPU is present, unless the user
+/// set the variable themselves.
+fn apply_webkit_nvidia_fallback() {
+    if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_some() {
+        return;
+    }
+    let nvidia = PathBuf::from("/dev/nvidia0").exists()
+        || PathBuf::from("/sys/module/nvidia").exists();
+    if nvidia {
+        std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+    }
+}
+
 fn main() {
+    apply_webkit_nvidia_fallback();
     let sidecar = Arc::new(Mutex::new(None::<Child>));
     let shutdown = Arc::new(AtomicBool::new(false));
 
