@@ -72,6 +72,13 @@ fn update_mode() -> &'static str {
     }
 }
 
+/// Quit the whole app (window, sidecar and tray). Bound to Ctrl+Q in the UI,
+/// since keyboard users otherwise have only the tray's Quit item.
+#[tauri::command]
+fn quit_app(app: AppHandle) {
+    app.exit(0);
+}
+
 /// Clipboard text: Wayland first, X11 fallback.
 fn read_clipboard() -> Option<String> {
     for (cmd, args) in [
@@ -492,7 +499,7 @@ fn main() {
                 Ok(())
             }
         })
-        .invoke_handler(tauri::generate_handler![get_token, startup_error, update_mode])
+        .invoke_handler(tauri::generate_handler![get_token, startup_error, update_mode, quit_app])
         .build(tauri::generate_context!())
         .expect("error while building Say It")
         .run({
