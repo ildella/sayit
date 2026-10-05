@@ -44,14 +44,19 @@ a gap waiting to be filled.
 
 ### Omarchy
 
+Say It is in review for the Omarchy package repository —
+[omacom/omarchy-pkgs#813](https://github.com/omacom/omarchy-pkgs/pull/813).
+Once it is merged:
+
 ```sh
 omarchy pkg add sayit-bin
 ```
 
 One package, everything in it: the desktop app (launcher and tray), the
 `sayit` CLI, `sayit-clipboard`, and the agent skill. Updates come through
-pacman. For the clipboard hotkey, bind `sayit-clipboard` to a Hyprland
-shortcut — Wayland blocks in-app global shortcuts.
+pacman. Until it lands, a 👍 on the PR helps it get reviewed. For the
+clipboard hotkey, bind `sayit-clipboard` to a Hyprland shortcut — Wayland
+blocks in-app global shortcuts.
 
 ### All other Linux
 
