@@ -40,66 +40,71 @@ a gap waiting to be filled.
   [Say It agent skill](skills/sayit/SKILL.md) provides live, hands-free spoken
   progress updates while an agent works.
 
-## Getting started
+## Install
 
-Two products, one engine. The CLI installer never needs a window. The GUI
-package includes its own copy of the sidecar and talks to whatever is already
-on port 7878.
+### Omarchy
 
-### CLI (no window)
+Say It is in review for the Omarchy package repository —
+[omacom/omarchy-pkgs#813](https://github.com/omacom/omarchy-pkgs/pull/813).
+Once it is merged:
 
-Needs **Node ≥ 20**, npm, and **mpv** (`aplay` is a limited fallback).
-Clipboard tools (`wl-paste`, `xclip`, or `xsel`) only if you want the hotkey.
+```sh
+omarchy pkg add sayit-bin
+```
+
+One package, everything in it: the desktop app (launcher and tray), the
+`sayit` CLI, `sayit-clipboard`, and the agent skill. Updates come through
+pacman. Until it lands, a 👍 on the PR helps it get reviewed. For the
+clipboard hotkey, bind `sayit-clipboard` to a Hyprland shortcut — Wayland
+blocks in-app global shortcuts.
+
+### All other Linux
+
+**CLI (terminal only, no window).** Needs **Node ≥ 20**, npm, and **mpv**
+(`aplay` is a limited fallback); clipboard tools (`wl-paste`, `xclip`, or
+`xsel`) only if you want the hotkey.
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/ildella/sayit/master/scripts/install.sh | bash -s -- --systemd
 ```
 
-Or from a clone: `bash scripts/install.sh --systemd`. Omit `--systemd` to
-start the daemon once without enabling it. Put `~/.local/bin` on your `PATH`.
+Add `~/.local/bin` to your `PATH`. Omit `--systemd` to start the daemon once
+without enabling it, or use `bash scripts/install.sh --systemd` from a clone.
 
-Then download a model (once, then the app stays offline) and speak:
+**Desktop.** Download from
+[Releases](https://github.com/ildella/sayit/releases), then:
+
+```sh
+sudo apt install ./SayIt_*_amd64.deb              # Debian/Ubuntu
+sudo rpm -Uvh SayIt-*.x86_64.rpm                  # Fedora/openSUSE
+chmod +x SayIt_*.AppImage && ./SayIt_*.AppImage   # anywhere, no sudo
+```
+
+All three embed the sidecar, the `sayit` CLI, `sayit-clipboard`, the agent
+skill and the licence; they need **Node ≥ 20** and **mpv** (the `.deb`/`.rpm`
+declare both). The window binary is `sayit-desktop`; installing the package
+also puts `sayit` and `sayit-clipboard` on your `PATH`. It does not replace an
+existing CLI install — whoever starts first owns port 7878, the other
+connects. Tags also publish an experimental **Windows MSI** (same Node + mpv
+requirement; not a full Windows port).
+
+Auto-update (Settings → Check for updates) covers the AppImage and the MSI.
+`.deb` / `.rpm` belong to your package manager, so Settings points you there
+instead of showing a broken update button.
+
+### First run
+
+Download a model once (after that the app stays offline) and speak:
 
 ```sh
 sayit models install kokoro-q8 --use
 sayit "Hello from Say It"
 ```
 
-Or copy text and run `sayit-clipboard` (bind that in your desktop
-shortcuts). Speak returns an error until a catalog model is installed
-and selected.
+Or copy text and run `sayit-clipboard` (bind it as a desktop shortcut). Speak
+returns an error until a catalog model is installed and selected.
 
-### Desktop app
-
-The Linux GUI ships as an **AppImage**, a **.deb**, and a **.rpm**; all three
-embed the sidecar, the `sayit` CLI, `sayit-clipboard`, the agent skill and the
-licence. They need **Node ≥ 20** and **mpv** on the machine (the deb/rpm
-declare both; clipboard tools are recommended). The AppImage needs no sudo.
-Tags also publish an experimental **Windows MSI** (same Node + mpv
-requirement; not a full Windows port).
-
-Download it from
-[Releases](https://github.com/ildella/sayit/releases), then:
-
-```sh
-chmod +x SayIt-*.AppImage
-./SayIt-*.AppImage
-```
-
-Or install the package:
-
-```sh
-sudo apt install ./SayIt_*_amd64.deb     # Debian/Ubuntu
-sudo pacman -U SayIt_*_amd64.pkg.tar.zst # Arch (see packaging/omarchy)
-```
-
-The window binary is `sayit-desktop`; installing the package also gives you
-`sayit` and `sayit-clipboard` on your `PATH`. It does not replace an existing
-CLI install — whoever starts first owns port 7878; the other connects.
-
-Auto-update (Settings → Check for updates) applies to the AppImage and the
-experimental Windows MSI. `.deb` / `.rpm` are owned by the distro: Settings
-points you at your package manager instead of showing a broken update button.
+## Usage
 
 ### Terminal
 
